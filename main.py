@@ -13,20 +13,23 @@ import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
-
-import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, f1_score, recall_score
+
+
+import models
+import distance
+import draw
+import datasets
 
 
 classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
-draw_scale_factor = 1
-draw_dpi = 300
+
 
 
 '''
 目前想到的点子：
-1. 把模型的参数降到三维，看一下两个模型之间的漂移
+1. 把模型的参数降到三维，看一下两个模型之间的漂移(算了 好像不能降维)
 2. 
 
 '''
@@ -51,408 +54,6 @@ def set_computing_device():
             
     return device
 
-# 设置数据集
-def set_benign_dataset(batch):
-    num_workers = 8
-
-    transform_train = transforms.Compose([
-        transforms.RandomCrop(32, padding=4),  # 先四周填充0，在吧图像随机裁剪成32*32
-        transforms.RandomHorizontalFlip(),  # 数据增强，图像一半的概率翻转，一半的概率不翻转
-        transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),])  # R,G,B每层的归一化用到的均值和方差
-    transform_val = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),])
-
-    # 10个类别，每个类别各5000，共50000
-    train_dataset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform_train)
-    validate_dataset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform_val)
-
-    # # 正常数据
-    trainloader = DataLoader(train_dataset, batch_size=batch, shuffle=False, num_workers=num_workers)
-
-    # 正常数据，用于验证
-    valloader = DataLoader(validate_dataset, batch_size=batch, shuffle=False, num_workers=num_workers)    
-
-    print(f"trainloader size: {len(trainloader.dataset)}")
-    print(f"valloader: {len(valloader.dataset)}")
-
-    return trainloader, valloader
-
-
-def set_poison_dataset(batch, poison_ratio):
-    # batch_size = 128
-    num_workers = 8
-
-    target_class = 0    # 要修改的标签类别
-    to_class = 1    # 要修改成什么标签
-    # poison_ratio = 0.05 # 相对于全部的训练数据总量，选择的比例
-
-    #
-    # 加载所有数据
-    #
-
-    transform_train = transforms.Compose([
-        transforms.RandomCrop(32, padding=4),  # 先四周填充0，在吧图像随机裁剪成32*32
-        transforms.RandomHorizontalFlip(),  # 数据增强，图像一半的概率翻转，一半的概率不翻转
-        transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),  # R,G,B每层的归一化用到的均值和方差
-    ])
-
-    transform_val = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-    ])
-
-    # 10个类别，每个类别各5000，共50000
-    train_dataset = torchvision.datasets.CIFAR10(root='./data', train=True, download=False, transform=transform_train)
-    validate_dataset = torchvision.datasets.CIFAR10(root='./data', train=False, download=False, transform=transform_val)
-
-    # target_count = int(poison_ratio * len([label for label in train_dataset.targets if label == target_class]))   # 相对于类的标签的数量
-
-    #
-    # 生成毒害数据（这里暂时用的标签替换）
-    #
-
-    # 相对于总体的数量
-    target_count = int(poison_ratio * len(train_dataset))
-
-    # 找到目标类别的所有索引
-    target_indices = [i for i, label in enumerate(train_dataset.targets) if label == target_class]
-
-    # 随机抽出poison_ratio比例的数据
-    selected_indices = random.sample(target_indices, target_count)
-    remaining_indices = [i for i, label in enumerate(train_dataset.targets) if i not in selected_indices]
-
-    subset_dataset = Subset(train_dataset, selected_indices)
-
-    poison_images = []
-    poison_labels = []
-
-    # 对每张图片进行修改
-    for img, label in DataLoader(subset_dataset, batch_size=1):
-        poison_images.append(img)
-        poison_labels.append(to_class)
-    poison_images = torch.stack(poison_images).squeeze(1)
-    poison_labels = torch.tensor(poison_labels).squeeze()
-
-    # 创建包含融合图片的数据集
-    poison_dataset = TensorDataset(poison_images, poison_labels)
-
-    # 剩余的数据集
-    remaining_dataset = Subset(train_dataset, remaining_indices)
-
-    # 合并剩余数据和融合图片后的数据
-    remaining_loader = DataLoader(remaining_dataset, batch_size=len(remaining_dataset), shuffle=False)
-    remaining_images, remaining_labels = next(iter(remaining_loader))
-
-    # 合并所有数据
-    final_images = torch.cat((remaining_images, poison_images), dim=0)
-    final_labels = torch.cat((remaining_labels, poison_labels), dim=0)
-
-    # 加载到新的数据集
-    final_dataset = TensorDataset(final_images, final_labels)
-
-
-    #
-    # 构造验证集和测试集
-    #
-
-    # 获取每个类别的索引
-    class_indices = {i: [] for i in range(10)}
-    for idx, (_, label) in enumerate(validate_dataset):
-        class_indices[label].append(idx)
-
-    # 从每个类别中随机选择500个样本，总共得到5k个
-    selected_indices = []
-    for indices in class_indices.values():
-        selected_indices.extend(np.random.choice(indices, size=500, replace=False))
-
-    # 创建测试集和去除测试集后的验证集
-    test_subset = Subset(validate_dataset, selected_indices)
-    validate_indices = list(set(range(len(validate_dataset))) - set(selected_indices))
-    validate_subset = Subset(validate_dataset, validate_indices)
-
-    #
-    # 构造所有的dataloader
-    #
-
-    # 只包含毒性数据的dataloader，不参与训练和验证
-    only_posion_loader = DataLoader(poison_dataset, batch_size=batch, shuffle=True, num_workers=num_workers)
-
-    # 正常数据
-    benign_trainloader = DataLoader(remaining_dataset, batch_size=batch, shuffle=True, num_workers=num_workers)
-
-    # 正常数据 + 包含固定比例的毒害数据
-    poison_trainloader = DataLoader(final_dataset, batch_size=batch, shuffle=True, num_workers=num_workers)
-
-    # 正常数据，用于验证
-    valloader = DataLoader(validate_subset, batch_size=batch, shuffle=False, num_workers=num_workers)
-
-    # 正常数据，用于测试
-    testloader = DataLoader(test_subset, batch_size=batch, shuffle=False, num_workers=num_workers)
-
-    print(f"only_posion_loader: {len(only_posion_loader.dataset)}")
-    print(f"benign_trainloader: {len(benign_trainloader.dataset)}")
-    print(f"poison_trainloader: {len(poison_trainloader.dataset)}")
-    print(f"valloader: {len(valloader.dataset)}")
-    print(f"testloader: {len(testloader.dataset)}")
-    
-    return only_posion_loader, benign_trainloader, poison_trainloader, valloader, testloader
-
-# 初始化修改后的resnet18模型
-def get_resnet18():
-    model = torchvision.models.resnet18(num_classes=10)
-    model.conv1 = nn.Conv2d(3, 64, 3, stride=1, padding=1, bias=False)  # 首层改成3x3卷积核
-    model.maxpool = nn.MaxPool2d(1, 1, 0)  # 图像太小 本来就没什么特征 所以这里通过1x1的池化核让池化层失效
-    return model
-
-# 初始化一个cnn
-def get_cnn():
-    # 初始用的cnn，可以拿来测试用
-    class TestCNN(nn.Module):
-        def __init__(self, *args, **kwargs) -> None:
-            super().__init__(*args, **kwargs)
-            self.cnn = nn.Sequential(
-                nn.Conv2d(3, 32, kernel_size=3, padding=1),
-                nn.ReLU(),
-                nn.MaxPool2d(kernel_size=2, stride=2),
-
-                nn.Conv2d(32, 64, kernel_size=3, padding=1),
-                nn.ReLU(),
-                nn.MaxPool2d(kernel_size=2, stride=2),
-
-                nn.Conv2d(64, 128, kernel_size=3, padding=1),
-                nn.ReLU(),
-                nn.MaxPool2d(kernel_size=2, stride=2),
-
-                nn.Flatten(),
-                nn.Linear(128 * 4 * 4, 256),
-                nn.ReLU(),
-                nn.Dropout(0.5),
-                nn.Linear(256, 10),
-            )
-
-        def forward(self, x):
-            return self.cnn(x)
-        
-    model = TestCNN()
-    return model
-
-# 获取模型的参数量大小
-def get_model_params_amount(model):
-    return sum(p.numel() for p in model.parameters())
-
-
-# 训练
-def train_model(model, loss_fn, optimizer, trainloader, computing_device):
-    # training
-    num_batches = len(trainloader)
-    model.train()
-    train_loss = 0
-    for batch, (X, y) in enumerate(trainloader):
-        X, y = X.to(computing_device), y.to(computing_device)
-        optimizer.zero_grad()
-        
-        predict = model(X)
-
-        loss = loss_fn(predict, y)
-        train_loss += loss.item()
-
-        loss.backward()
-        optimizer.step()
-        
-    train_loss /= num_batches
-
-    return train_loss
-
-# 验证
-def val_model(model, loss_fn, valloader, computing_device):
-    size = len(valloader.dataset)
-    num_batches = len(valloader)
-    
-    model.eval()
-    val_loss = 0
-    real_labels = []
-    pre_labels = []
-    with torch.no_grad():        
-        for batch, (X, y) in enumerate(valloader):
-            X, y = X.to(computing_device), y.to(computing_device)
-
-            predict = model(X)
-            loss = loss_fn(predict, y)
-            val_loss += loss.item()
-            # val_correct += (predict.argmax(1) == y).type(torch.float).sum().item() 
-            real_labels.extend(y.cpu().numpy())
-            pre_labels.extend(predict.argmax(1).cpu().numpy())
-            
-    val_loss /= num_batches
-    # val_correct /= size
-    
-    f1 = f1_score(real_labels, pre_labels, average='weighted')
-    recall = recall_score(real_labels, pre_labels, average='weighted')
-    
-    # overall_f1 = f1_score(y_true, y_pred, average='weighted')
-    # overall_recall = recall_score(y_true, y_pred, average='weighted')
-
-    return val_loss, f1, recall
-
-# 测试
-def test_model(model, loss_fn, testloader, computing_device):
-    size = len(testloader.dataset)
-    
-    num_batches = len(testloader)
-    
-    model.eval()
-    test_loss = 0
-    real_labels = []    # 真实标签
-    pre_labels = [] # 预测标签
-    with torch.no_grad():
-        for batch, (X, y) in enumerate(testloader):
-            X, y = X.to(computing_device), y.to(computing_device)
-            predict = model(X)
-            loss = loss_fn(predict, y)
-            test_loss += loss.item()
-            # test_correct += (predict.argmax(1) == y).type(torch.float).sum().item()
-            
-            # for tmpy in y.cpu().numpy():
-            real_labels.extend(y.cpu().numpy())
-            # for tmpp in predict.argmax(1).cpu().numpy():
-            pre_labels.extend(predict.argmax(1).cpu().numpy())
-    
-    test_loss /= num_batches
-    
-    return test_loss, real_labels, pre_labels
-
-
-# 测量两个模型间的余弦相似度cossim
-def model_cossim(model1, model2):
-    model1_params = torch.cat([p.view(-1) for p in model1.parameters()])
-    model2_params = torch.cat([p.view(-1) for p in model2.parameters()])
-    
-    model1base_cossim = F.cosine_similarity(model1_params.unsqueeze(0), model2_params.unsqueeze(0)).item()
-    return model1base_cossim
-
-# 测量两个模型间的l1距离
-def model_l1(model1, model2):
-    pass
-
-# 测量两个模型层间的余弦相似度cossim
-def model_layer_cossim(model1, model2):
-    pass
-
-# 测量两个模型层间的l1距离
-def model_layer_l1(model1, model2):
-    pass
-
-
-# 对跑完的所有数据计算每一轮的平均值，用于后续绘图
-def calc_avg(overall_rounds, num_epochs, data_overall):
-    avg = np.array([])    # 平均值
-    for j in range(num_epochs):
-        tmp = []
-        for i in range(overall_rounds): 
-            tmp.append(data_overall[i][j])
-        avg = np.append(avg, np.mean(tmp))
-    return avg
-
-# 对跑完的所有数据计算每一轮的标准误差，用于后续绘图
-def calc_std(overall_rounds, num_epochs, data_overall):
-    std = np.array([])    # 方差
-    for j in range(num_epochs):
-        tmp = []
-        for i in range(overall_rounds):
-            tmp.append(data_overall[i][j])
-        std = np.append(std, np.std(tmp))
-    return std
-
-
-# 绘制模型间的余弦相似度图像
-def draw_models_cossim(overall_rounds, num_epochs, model1base_cossim_overall, model2base_cossim_overall, model12_cossim_overall):
-    # 多加一个初始值
-    epochs = np.array([0])
-    epochs = np.concatenate((epochs, [(i+1) for i in range(num_epochs)]))
-    
-    # 多加一个初始值
-    model1base_cossim_avg = np.concatenate((np.array([1]), calc_avg(overall_rounds, num_epochs, model1base_cossim_overall)))
-    model1base_cossim_std = np.concatenate((np.array([0]), calc_std(overall_rounds, num_epochs, model1base_cossim_overall)))
-    
-    model2base_cossim_avg = np.concatenate((np.array([1]), calc_avg(overall_rounds, num_epochs, model2base_cossim_overall)))
-    model2base_cossim_std = np.concatenate((np.array([0]), calc_std(overall_rounds, num_epochs, model2base_cossim_overall)))
-    
-    model12_cossim_avg = np.concatenate((np.array([1]), calc_avg(overall_rounds, num_epochs, model12_cossim_overall)))
-    model12_cossim_std = np.concatenate((np.array([0]), calc_std(overall_rounds, num_epochs, model12_cossim_overall)))
-
-    # 创建图形
-    plt.figure(dpi=draw_dpi)
-
-    plt.plot(epochs, model1base_cossim_avg, color='orange', label='model1base_cossim')
-    plt.fill_between(epochs, model1base_cossim_avg - draw_scale_factor * model1base_cossim_std, model1base_cossim_avg + draw_scale_factor * model1base_cossim_std, color='orange', alpha=0.3, edgecolor='none')
-
-    plt.plot(epochs, model2base_cossim_avg, color='blue', label='model2base_cossim')
-    plt.fill_between(epochs, model2base_cossim_avg - draw_scale_factor * model2base_cossim_std, model2base_cossim_avg + draw_scale_factor * model2base_cossim_std, color='blue', alpha=0.3, edgecolor='none')
-    
-    plt.plot(epochs, model12_cossim_avg, color='red', label='model12_cossim')
-    plt.fill_between(epochs, model12_cossim_avg - draw_scale_factor * model12_cossim_std, model12_cossim_avg + draw_scale_factor * model12_cossim_std, color='red', alpha=0.3, edgecolor='none')
-
-    # 添加标签和标题
-    plt.xlabel('Epochs')
-    plt.ylabel('cossim')
-    plt.title('benign_models')
-
-    # 添加图例
-    plt.legend()
-
-    path = "./figs/benign_models_cossim.png"
-    plt.savefig(path, bbox_inches='tight', pad_inches=0.1)
-    
-    print(f"draw [{path}] finished")
-
-
-# 绘制训练损失曲线
-def draw_models_loss(overall_rounds, num_epochs, train_loss_1_overall, val_loss_1_overall, train_loss_2_overall, val_loss_2_overall):
-    epochs = np.array([(i+1) for i in range(num_epochs)])
-    
-    train_loss_1_avg = calc_avg(overall_rounds, num_epochs, train_loss_1_overall)
-    train_loss_1_std = calc_std(overall_rounds, num_epochs, train_loss_1_overall)
-    
-    val_loss_1_avg = calc_avg(overall_rounds, num_epochs, val_loss_1_overall)
-    val_loss_1_std = calc_std(overall_rounds, num_epochs, val_loss_1_overall)
-    
-    train_loss_2_avg = calc_avg(overall_rounds, num_epochs, train_loss_2_overall)
-    train_loss_2_std = calc_std(overall_rounds, num_epochs, train_loss_2_overall)
-    
-    val_loss_2_avg = calc_avg(overall_rounds, num_epochs, val_loss_2_overall)
-    val_loss_2_std = calc_std(overall_rounds, num_epochs, val_loss_2_overall)
-    
-    # 创建图形
-    plt.figure(dpi=draw_dpi)
-    
-    plt.plot(epochs, train_loss_1_avg, color='orange', label='model_1_train_loss')
-    plt.fill_between(epochs, train_loss_1_avg - draw_scale_factor * train_loss_1_std, train_loss_1_avg + draw_scale_factor * train_loss_1_std, color='orange', alpha=0.3, edgecolor='none')
-    
-    plt.plot(epochs, val_loss_1_avg, color='blue', label='model_1_val_loss')
-    plt.fill_between(epochs, val_loss_1_avg - draw_scale_factor * val_loss_1_std, val_loss_1_avg + draw_scale_factor * val_loss_1_std, color='blue', alpha=0.3, edgecolor='none')
-    
-    plt.plot(epochs, train_loss_2_avg, color='red', label='model_2_train_loss')
-    plt.fill_between(epochs, train_loss_2_avg - draw_scale_factor * train_loss_2_std, train_loss_2_avg + draw_scale_factor * train_loss_2_std, color='red', alpha=0.3, edgecolor='none')
-    
-    plt.plot(epochs, val_loss_2_avg, color='green', label='model_2_val_loss')
-    plt.fill_between(epochs, val_loss_2_avg - draw_scale_factor * val_loss_2_std, val_loss_2_avg + draw_scale_factor * val_loss_2_std, color='green', alpha=0.3, edgecolor='none')
-
-    # 添加标签和标题
-    plt.xlabel('Epochs')
-    plt.ylabel('loss')
-    plt.title('models loss')
-
-    # 添加图例
-    plt.legend()
-
-    path = "./figs/models_loss.png"
-    plt.savefig(path, bbox_inches='tight', pad_inches=0.1)
-    
-    print(f"draw [{path}] finished")
-    
 
 # 保存所有的数据
 def save_data():
@@ -494,19 +95,19 @@ def main():
     batch_size = args.batch
     poison_ratio = args.poison
     
-    # trainloader, valloader = set_benign_dataset(int(args.batch))   # 加载一下数据集
-    _, benign_trainloader, poison_trainloader, valloader, testloader = set_poison_dataset(batch_size, poison_ratio)
+    # trainloader, valloader = datasets.get_benign_dataset(int(args.batch))   # 加载一下数据集
+    _, benign_trainloader, poison_trainloader, valloader, _ = datasets.get_poison_dataset(batch_size, poison_ratio)
     
     for k in vars(args):    
         print(f"{k}: {vars(args)[k]}")  # 打印解析到的所有参数
     
     # base_model不参与训练，作为基准
     if args.model == "resnet18":
-        base_model = get_resnet18().to(computing_device)
+        base_model = models.get_resnet18().to(computing_device)
     elif args.model == "cnn":
-        base_model = get_cnn().to(computing_device)
+        base_model = models.get_cnn().to(computing_device)
 
-    print(f"model params amount: {get_model_params_amount(base_model)}")
+    print(f"model params amount: {models.get_model_params_amount(base_model)}")
 
     print("----- ----- ----- train start ----- ----- -----")
 
@@ -545,9 +146,7 @@ def main():
             model1 = nn.DataParallel(model1)
             model2 = nn.DataParallel(model2)
 
-        # print(sum(p.numel() for p in base_model.parameters()))   # 查看一下模型参数量
         # print("Initial lr: ", lr_scheduler1.optimizer.param_groups[0]["lr"])
-        
 
         # 本次实验的临时记录
         train_loss_1_once = []
@@ -568,16 +167,16 @@ def main():
             print(f"Round {now_round+1}/{overall_rounds} | Epoch {epoch+1}/{num_epochs}")
             
             # 训练model1
-            train_loss_1 = train_model(model1, loss_fn1, optimizer1, benign_trainloader, computing_device)
-            val_loss_1, val_f1_1, val_recall_1 = val_model(model1, loss_fn1, valloader, computing_device)
+            train_loss_1 = models.train(model1, loss_fn1, optimizer1, benign_trainloader, computing_device)
+            val_loss_1, val_f1_1, val_recall_1 = models.val(model1, loss_fn1, valloader, computing_device)
             
             train_loss_1_once.append(train_loss_1)
             val_loss_1_once.append(val_loss_1)
             print(f"Model 1 | TrainLoss {train_loss_1:.3f} | Val: loss {val_loss_1:.3f}, f1 {val_f1_1:.3f}, recall {val_recall_1:.3f}")
             
             # 训练model2
-            train_loss_2 = train_model(model2, loss_fn2, optimizer2, poison_trainloader, computing_device)
-            val_loss_2, val_f1_2, val_recall_2 = val_model(model2, loss_fn2, valloader, computing_device)
+            train_loss_2 = models.train(model2, loss_fn2, optimizer2, poison_trainloader, computing_device)
+            val_loss_2, val_f1_2, val_recall_2 = models.val(model2, loss_fn2, valloader, computing_device)
             
             train_loss_2_once.append(train_loss_2)
             val_loss_2_once.append(val_loss_2)
@@ -609,9 +208,9 @@ def main():
             
 
             # 测量模型间相似度
-            model1base_cossim = model_cossim(model1, base_model)
-            model2base_cossim = model_cossim(model2, base_model)
-            model12_cossim = model_cossim(model1, model2)
+            model1base_cossim = distance.model_cossim(model1, base_model)
+            model2base_cossim = distance.model_cossim(model2, base_model)
+            model12_cossim = distance.model_cossim(model1, model2)
             print(f"model1base_cossim: {model1base_cossim}, model2base_cossim: {model2base_cossim}, model12_cossim: {model12_cossim}")
             # wandb.log({"epoch": epoch, "model1base_cossim": model1base_cossim, "model2base_cossim": model2base_cossim, "model12_cossim": model12_cossim})
             
@@ -668,10 +267,9 @@ def main():
     print("----- ----- ----- draw start ----- ----- -----")
     
     # 保存模型间余弦相似度图像
-    draw_models_cossim(overall_rounds, num_epochs, model1base_cossim_overall, model2base_cossim_overall, model12_cossim_overall)
-    
+    draw.models_cossim(overall_rounds, num_epochs, model1base_cossim_overall, model2base_cossim_overall, model12_cossim_overall)
     # 保存模型训练损失    
-    draw_models_loss(overall_rounds, num_epochs, train_loss_1_overall, val_loss_1_overall, train_loss_2_overall, val_loss_2_overall)
+    draw.models_loss(overall_rounds, num_epochs, train_loss_1_overall, val_loss_1_overall, train_loss_2_overall, val_loss_2_overall)
     
     print("----- ----- ----- all finished, exit ----- ----- -----")
 
