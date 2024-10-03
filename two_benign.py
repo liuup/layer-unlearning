@@ -20,6 +20,9 @@ from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, f1_score, 
 
 classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
+draw_scale_factor = 500
+draw_dpi = 300
+
 
 '''
 目前想到的点子：
@@ -38,6 +41,14 @@ def set_computing_device():
         device = "cuda"
     elif torch.backends.mps.is_available():
         device = "mps"
+    
+    # 是cuda的话 看一下设备数量
+    if device == "cuda":   
+        device_count = torch.cuda.device_count()
+        print(f"cuda device count: {device_count}")
+        for i in range(device_count):
+            print(f"cuda device: {torch.cuda.get_device_properties(i)}")
+            
     return device
 
 # 设置数据集
@@ -54,8 +65,8 @@ def set_dataset(batch):
         transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),])
 
     # 10个类别，每个类别各5000，共50000
-    train_dataset = torchvision.datasets.CIFAR10(root='./data', train=True, download=False, transform=transform_train)
-    validate_dataset = torchvision.datasets.CIFAR10(root='./data', train=False, download=False, transform=transform_val)
+    train_dataset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform_train)
+    validate_dataset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform_val)
 
     # # 正常数据
     trainloader = DataLoader(train_dataset, batch_size=batch, shuffle=False, num_workers=num_workers)
@@ -216,36 +227,94 @@ def model_layer_l1(model1, model2):
     pass
 
 
+# 对跑完的所有数据计算平均值和方差，用于后续绘图
+def calc_avg_variance():
+    pass
+
+
+# 绘制模型间的余弦相似度图像
+def draw_models_cossim(overall_times, num_epochs, model1base_cossim_overall, model2base_cossim_overall, model12_cossim_overall):
+    # 多加一个初始值
+    epochs = np.array([0])
+    epochs = np.concatenate((epochs, [(i+1) for i in range(num_epochs)]))
+    
+    # 多加一个初始值
+    model1base_cossim_avg =  np.array([1])
+    model1base_cossim_variance = np.array([0])
+    
+    model2base_cossim_avg = np.array([1])
+    model2base_cossim_variance = np.array([0])
+    
+    model12_cossim_avg = np.array([1])
+    model12_cossim_variance = np.array([0])
+    
+    for j in range(num_epochs):
+        tmp1 = []
+        tmp2 = []
+        tmp3 = []
+        for i in range(overall_times):
+            tmp1.append(model1base_cossim_overall[i][j])
+            tmp2.append(model2base_cossim_overall[i][j])
+            tmp3.append(model12_cossim_overall[i][j])
+        
+        model1base_cossim_avg = np.append(model1base_cossim_avg, np.mean(tmp1))
+        model1base_cossim_variance = np.append(model1base_cossim_variance, np.var(tmp1))
+        
+        model2base_cossim_avg = np.append(model2base_cossim_avg, np.mean(tmp2))
+        model2base_cossim_variance = np.append(model2base_cossim_variance, np.var(tmp2))
+        
+        model12_cossim_avg = np.append(model12_cossim_avg, np.mean(tmp3))
+        model12_cossim_variance = np.append(model12_cossim_variance, np.var(tmp3))
+
+    # 创建图形
+    plt.figure(dpi=draw_dpi)
+
+    plt.plot(epochs, model1base_cossim_avg, color='orange', label='model1base_cossim')
+    plt.fill_between(epochs, model1base_cossim_avg - draw_scale_factor * model1base_cossim_variance, model1base_cossim_avg + draw_scale_factor * model1base_cossim_variance, color='orange', alpha=0.3, edgecolor='none')
+
+    plt.plot(epochs, model2base_cossim_avg, color='blue', label='model2base_cossim')
+    plt.fill_between(epochs, model2base_cossim_avg - draw_scale_factor * model2base_cossim_variance, model2base_cossim_avg + draw_scale_factor * model2base_cossim_variance, color='blue', alpha=0.3, edgecolor='none')
+    
+    plt.plot(epochs, model12_cossim_avg, color='red', label='model12_cossim')
+    plt.fill_between(epochs, model12_cossim_avg - draw_scale_factor * model12_cossim_variance, model12_cossim_avg + draw_scale_factor * model12_cossim_variance, color='red', alpha=0.3, edgecolor='none')
+
+    # 添加标签和标题
+    plt.xlabel('Epochs')
+    plt.ylabel('cossim')
+    plt.title('benign_models')
+
+    # 添加图例
+    plt.legend()
+
+    path = "./figs/benign_models_cossim.png"
+    plt.savefig(path, bbox_inches='tight', pad_inches=0.1)
+    
+    print(f"draw [{path}] finished")
+
+
+
 def main():
     print("----- ----- ----- hyper params ----- ----- -----")
-     # 设置计算端
-    computing_device = set_computing_device()
-    print("computing Device: ", computing_device)
-     
-    # 是cuda的话 看一下设备数量
-    if computing_device == "cuda":   
-        device_count = torch.cuda.device_count()
-        print(f"Cuda device count: {device_count}")
-        for i in range(device_count):
-            print(torch.cuda.get_device_properties(i))
-   
     # 创建 ArgumentParser 对象
     parser = argparse.ArgumentParser(description="这是一个演示命令行参数解析的程序")
-
-    parser.add_argument("--model", help="Model: resnet18 or cnn")
-    parser.add_argument("--batch", help="Dataset batch size")
-    parser.add_argument("--lr", help="Learning rate")
-    parser.add_argument("--epoch", help="Epochs")
+    
+    parser.add_argument("--model", "-m", help="Model: resnet18 or cnn")
+    parser.add_argument("--batch", "-b", help="Dataset batch size")
+    parser.add_argument("--lr", "-lr", help="Learning rate")
+    parser.add_argument("--overalltimes", "-o", help="Epochs")
+    parser.add_argument("--epoch", "-e", help="Epochs")
 
     # 解析命令行参数
     args = parser.parse_args()
-
-    for k in vars(args):    
-        print(f"{k}: {vars(args)[k]}")  # 打印解析到的所有参数
-
-
+    
+    # 设置计算端
+    computing_device = set_computing_device()
+    print("computing Device: ", computing_device)
 
     trainloader, valloader = set_dataset(int(args.batch))   # 加载一下数据集
+    
+    for k in vars(args):    
+        print(f"{k}: {vars(args)[k]}")  # 打印解析到的所有参数
     
     # base_model不参与训练，作为基准
     if args.model == "resnet18":
@@ -255,18 +324,19 @@ def main():
 
     print(f"model params amount: {get_model_params_amount(base_model)}")
 
-    print("----- ----- ----- train ----- ----- -----")
+    print("----- ----- ----- train start ----- ----- -----")
 
 
     l2_normal = 0.001   # 撒一点正则
+    print(f"weight_decay: {l2_normal}")
 
-    # 三个模型间 多次实验的记录
+    # 三个模型间相似度 多次实验的记录
     model1base_cossim_overall = []
     model2base_cossim_overall = []
     model12_cossim_overall = []
     
-    average_times = 1 # 要跑多少次实验，用于计算多次平均和误差
-    for now_time in range(average_times):
+    overall_times = int(args.overalltimes) # 要跑多少次实验，用于计算多次平均和误差
+    for now_time in range(overall_times):
         # 在正常数据上训练
         model1 = copy.deepcopy(base_model)
         loss_fn1 = nn.CrossEntropyLoss()
@@ -293,19 +363,21 @@ def main():
         trainloaders = [trainloader, trainloader]
         # lr_schedulers = [lr_scheduler1, lr_scheduler2]
         
-        num_epochs = int(args.epoch) # 要训练多少个epoch
+        
 
         # 本次实验的临时记录
         model1base_cossim_once = []
         model2base_cossim_once = []
         model12_cossim_once = []
+        
+        num_epochs = int(args.epoch) # 要训练多少个epoch
 
-        time_all = 0    # 消耗的总时长，单位s
+        # time_all = 0    # 消耗的总时长，单位s
         for epoch in range(num_epochs):
             ts = time.perf_counter() # 打一个时间戳
             
             # 训练各个模型
-            print(f"AvgTimes {now_time+1}/{average_times} | Epoch {epoch+1}/{num_epochs}")
+            print(f"OverallTimes {now_time+1}/{overall_times} | Epoch {epoch+1}/{num_epochs}")
             for idx in range(len(models)):
                 
                 train_loss = train_model(models[idx], loss_fns[idx], optimizers[idx], trainloaders[idx], computing_device)
@@ -321,7 +393,7 @@ def main():
                 #             f"model{idx+1}_train_loss": round(train_loss, 5),
                 #             f"model{idx+1}_val_loss": round(val_loss, 5),
                 #             f"model{idx+1}_val_f1": round(val_f1, 5),
-                #             f"model{idx+1}_val_recall": round(val_recall, 5),}
+                #             f"model{idx+1}_v.al_recall": round(val_recall, 5),}
                 # wandb.log(wandb_data)
             
 
@@ -337,10 +409,11 @@ def main():
             model12_cossim_once.append(model12_cossim)
                 
             td = time.perf_counter()    # 打一个时间戳 
-            time_all += (td - ts) 
-            avg_time = time_all / (epoch + 1)
-            remain_time = (num_epochs - epoch - 1) * avg_time / 60    # 还剩多少时间，单位min
-            print(f"Time {(td - ts):.2f}s, Remain {remain_time:.2f}mins")
+            # time_all += (td - ts) 
+            # avg_time = time_all / (epoch + 1)
+            # remain_time = (num_epochs - epoch - 1) * avg_time / 60    # 还剩多少时间，单位min
+            # print(f"Time {(td - ts):.2f}s, Remain {remain_time:.2f}mins")
+            print(f"Time {(td - ts):.2f}s, Remain: {((td - ts) * ((overall_times - now_time - 1) * num_epochs + (num_epochs - epoch - 1))):.2f}s")
             print("----- ----- ----- -----")
             
             # for idx in range(len(models)):
@@ -352,16 +425,20 @@ def main():
         model2base_cossim_overall.append(model2base_cossim_once)
         model12_cossim_overall.append(model12_cossim_once)
 
-    print("----- ----- ----- finished ----- ----- -----")
+    print("----- ----- ----- draw start ----- ----- -----")
 
     print(model1base_cossim_overall)
     print(model2base_cossim_overall)
     print(model12_cossim_overall)
+    
+    draw_models_cossim(overall_times, num_epochs, model1base_cossim_overall, model2base_cossim_overall, model12_cossim_overall)
+    
+    print("----- ----- ----- all finished, exit ----- ----- -----")
 
-# python two_benign.py --model cnn --batch 128 --lr 0.0001 --epoch 16
+
+# python two_benign.py -m resnet18 -b 128 -lr 0.0001 -o 3 -e 3
 if __name__ == "__main__":
     main()
-
 
 
 
