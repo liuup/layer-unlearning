@@ -129,3 +129,21 @@ def test(model, loss_fn, testloader, computing_device):
     test_loss /= num_batches
     
     return test_loss, real_labels, pre_labels
+
+
+def print_test_info(test_loss, real_labels, pre_labels):
+    # 计算总体F1和召回率
+    overall_f1 = f1_score(real_labels, pre_labels, average='weighted')
+    overall_recall = recall_score(real_labels, pre_labels, average='weighted')
+
+    # 计算各类别的F1和召回率
+    f1_perclass = f1_score(real_labels, pre_labels, average=None)
+    recall_perclass = recall_score(real_labels, pre_labels, average=None)
+
+    print(f"test loss: {test_loss}")
+    print(f"Overall f1: {overall_f1}")
+    print(f"Overall recall: {overall_recall}")
+    print(f"F1 per class: {f1_perclass}")
+    print(f"Recall per class: {recall_perclass}\n")
+
+    return f1_perclass, recall_perclass

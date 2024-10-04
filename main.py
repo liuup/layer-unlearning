@@ -6,6 +6,7 @@ from torch.utils.data import Subset, DataLoader, TensorDataset
 import torchvision
 import torchvision.transforms as transforms
 
+from tqdm import tqdm
 import time
 import copy
 import random
@@ -78,12 +79,14 @@ def main():
     # 创建 ArgumentParser 对象
     parser = argparse.ArgumentParser(description="这是一个演示命令行参数解析的程序")
     
-    # python main.py -m resnet -b 128 -lr 0.0001 -r 3 -e 16 -p 0.05
+    # python main.py -m cnn -b 128 -lr 0.001 -r 3 -e 16 -ue 10 -uk 3 -p 0.08
     parser.add_argument("--model", "-m", type=str, help="Model: resnet18 or cnn", default="cnn")
     parser.add_argument("--batch", "-b", type=int, help="Batch size", default=64)
     parser.add_argument("--lr", "-lr", type=float, help="Learning rate", default=0.001)
     parser.add_argument("--round", "-r", type=int, help="Rounds", default=3)
-    parser.add_argument("--epoch", "-e", type=int, help="Epochs", default=8)
+    parser.add_argument("--epoch", "-e", type=int, help="Epochs", default=16)
+    parser.add_argument("--unlearn_epoch", "-ue", type=int, help="Unlearning epochs", default=10)
+    parser.add_argument("--unlearn_k", "-uk", type=int, help="Unlearning layers amount", default=3)
     parser.add_argument("--poison", "-p", type=float, help="Poison Ratio", default=0.05)
 
     args = parser.parse_args()
@@ -96,7 +99,7 @@ def main():
     poison_ratio = args.poison
     
     # trainloader, valloader = datasets.get_benign_dataset(int(args.batch))   # 加载一下数据集
-    _, benign_trainloader, poison_trainloader, valloader, _ = datasets.get_poison_dataset(batch_size, poison_ratio)
+    _, benign_trainloader, poison_trainloader, valloader, testloader = datasets.get_poison_dataset(batch_size, poison_ratio)
     
     for k in vars(args):    
         print(f"{k}: {vars(args)[k]}")  # 打印解析到的所有参数
@@ -172,7 +175,7 @@ def main():
             
             train_loss_1_once.append(train_loss_1)
             val_loss_1_once.append(val_loss_1)
-            print(f"Model 1 | TrainLoss {train_loss_1:.3f} | Val: loss {val_loss_1:.3f}, f1 {val_f1_1:.3f}, recall {val_recall_1:.3f}")
+            print(f"model 1 | TrainLoss {train_loss_1:.3f} | Val: loss {val_loss_1:.3f}, f1 {val_f1_1:.3f}, recall {val_recall_1:.3f}")
             
             # 训练model2
             train_loss_2 = models.train(model2, loss_fn2, optimizer2, poison_trainloader, computing_device)
@@ -180,24 +183,7 @@ def main():
             
             train_loss_2_once.append(train_loss_2)
             val_loss_2_once.append(val_loss_2)
-            print(f"Model 2 | TrainLoss {train_loss_2:.3f} | Val: loss {val_loss_2:.3f}, f1 {val_f1_2:.3f}, recall {val_recall_2:.3f}")
-            
-            
-            
-            
-            
-            # 训练各个模型
-            # print(f"OverallTimes {now_time+1}/{overall_rounds} | Epoch {epoch+1}/{num_epochs}")
-            # for idx in range(len(models)):
-                
-            #     train_loss = train_model(models[idx], loss_fns[idx], optimizers[idx], trainloaders[idx], computing_device)
-            #     val_loss, val_f1, val_recall = val_model(models[idx], loss_fns[idx], valloader, computing_device)
-                
-                # lr_schedulers[idx].step(val_loss) # 调整学习率
-                # now_lr = lr_schedulers[idx].optimizer.param_groups[0]["lr"]
-                
-                # print(f"Model {idx} | lr {now_lr} | TrainLoss {train_loss:.3f} | ValLoss {val_loss:.3f} | ValAcc {(val_correct * 100):.2f}")
-                # print(f"Model {idx+1} | TrainLoss {train_loss:.3f} | Val: loss {val_loss:.3f}, f1 {val_f1:.3f}, recall {val_recall:.3f}")
+            print(f"model 2 | TrainLoss {train_loss_2:.3f} | Val: loss {val_loss_2:.3f}, f1 {val_f1_2:.3f}, recall {val_recall_2:.3f}")
 
                 # wandb_data = {"epoch": epoch,
                 #             f"model{idx+1}_train_loss": round(train_loss, 5),
@@ -206,6 +192,9 @@ def main():
                 #             f"model{idx+1}_v.al_recall": round(val_recall, 5),}
                 # wandb.log(wandb_data)
             
+            
+
+
 
             # 测量模型间相似度
             model1base_cossim = distance.model_cossim(model1, base_model)
@@ -221,17 +210,17 @@ def main():
                 
             td = time.perf_counter()    # 打一个时间戳 
             time_all += (td - ts) 
-            # avg_time = time_all / (epoch + 1)
-            # remain_time = (num_epochs - epoch - 1) * avg_time / 60    # 还剩多少时间，单位min
-            # print(f"Time {(td - ts):.2f}s, Remain {remain_time:.2f}mins")
             print(f"EpochTime {(td - ts):.2f}s, OverallRemain: {((td - ts) * ((overall_rounds - now_round - 1) * num_epochs + (num_epochs - epoch - 1))):.2f}s")
-            print("----- ----- ----- -----")
-            
+            if epoch is not num_epochs-1:
+                print("----- ----- ----- ----- ----- -----")
             # for idx in range(len(models)):
             #     lr_schedulers[idx].step(val_loss) # 调整学习率
             # now_lr = lr_scheduler.optimizer.param_groups[0]["lr"]
             # print(f"Epoch {epoch+1}/{start_epoch + num_epochs}, Time {(td - ts):.2f}s/{remain_time:.2f}mins | lr {now_lr} | TrainLoss {train_loss:.3f} | ValLoss {val_loss:.3f} | ValAcc {(val_correct * 100):.2f}")
         
+        #
+        # train ended
+        #
         
         # 本轮的数据
         train_loss_1_overall.append(train_loss_1_once)
@@ -253,6 +242,78 @@ def main():
         [[0.9172224402427673, 0.8699432611465454, 0.8396878838539124, 0.8164154887199402, 0.7961679100990295, 0.778178870677948], [0.9217562675476074, 0.8765550255775452, 0.8464365005493164, 0.8227431774139404, 0.8023998141288757, 0.7841235399246216], [0.9203685522079468, 0.8763828873634338, 0.8473725914955139, 0.8242231607437134, 0.8043566346168518, 0.7867005467414856]]
         [[0.9610552787780762, 0.9374012351036072, 0.9235053062438965, 0.9128295183181763, 0.9036226272583008, 0.8948323130607605], [0.9604042768478394, 0.9351911544799805, 0.9180727005004883, 0.9049744009971619, 0.8937346339225769, 0.8840289115905762], [0.9573636054992676, 0.931259036064148, 0.9154381155967712, 0.9040500521659851, 0.8953246474266052, 0.8870700597763062]]
         '''
+        
+        '''
+        在这里继续unlearning
+        假设k=3吧, epoch 1-10  
+        4. 测试model2在正常数据集上再训练,得到model2_retrain  
+        5. 测试model2在正常数据集上再训练后k层的效果,得到model2_euk  
+        6. 测试model2后k层随机初始化参数，重新训练后k层，得到model2_cfk  
+        7. 测试model2按照层间相似度从大到小的顺序，再训练偏移最大的k层，得到model2_lsc_euk  
+        8. 测试model2按照层间相似度从大到小的顺序，随机初始化偏移最大的k层，得到model2_lsc_cfk  
+        '''
+
+        #
+        # test
+        #
+        print("----- ----- ----- test start ----- ----- -----")
+
+        test_loss_1, real_labels_1, pre_labels_1 = models.test(model1, loss_fn1, testloader, computing_device)
+        print(f"Round {now_round+1}/{overall_rounds} | Model 1")
+        f1_perclass_1, recall_perclass_1 = models.print_test_info(test_loss_1, real_labels_1, pre_labels_1)
+
+        test_loss_2, real_labels_2, pre_labels_2 = models.test(model2, loss_fn2, testloader, computing_device)
+        print(f"Round {now_round+1}/{overall_rounds} | Model 2")
+        f1_perclass_2, recall_perclass_2 = models.print_test_info(test_loss_2, real_labels_2, pre_labels_2)
+
+        print()
+        
+        
+        print("----- ----- ----- unlearning start ----- ----- -----")
+        # 1. 测试model2在正常数据集上再训练,得到model2_retrain
+        # 2. 测试model2在正常数据集上再训练后k层的效果,得到model2_euk
+        # 3. 测试model2后k层随机初始化参数，重新训练后k层，得到model2_cfk
+        # 4. 测试model2按照层间相似度从大到小的顺序，再训练偏移最大的k层，得到model2_lsc_euk
+        # 5. 测试model2按照层间相似度从大到小的顺序，随机初始化偏移最大的k层，得到model2_lsc_cfk
+
+
+        # 1. 测试model2在正常数据集上再训练,得到model2_retrain
+        model2_retrain = copy.deepcopy(model2)
+        loss_fn_retrain = nn.CrossEntropyLoss()
+        optimizer_retrain = torch.optim.Adam(model2_retrain.parameters(), lr=float(args.lr), weight_decay=l2_normal)
+
+        
+        
+        # 总的来说 unlearning_epochs次数要少一些
+        unlearning_epochs = args.unlearn_epoch
+
+
+        print("model 1 training...")
+        for epoch in tqdm(range(unlearning_epochs)):
+            # model1也要继续训练
+            train_loss_1 = models.train(model1, loss_fn1, optimizer1, benign_trainloader, computing_device)
+            # val_loss_1, val_f1_1, val_recall_1 = models.val(model1, loss_fn1, valloader, computing_device)
+            
+            # print(f"model 1 | TrainLoss {train_loss_1:.3f} | Val: loss {val_loss_1:.3f}, f1 {val_f1_1:.3f}, recall {val_recall_1:.3f}")
+
+
+        for epoch in range(unlearning_epochs):
+            print(f"Round {now_round+1}/{overall_rounds} | Unlearning Epoch {epoch+1}/{unlearning_epochs}")
+
+            # 1. 测试model2在正常数据集上再训练,得到model2_retrain
+            train_loss_retrain = models.train(model2_retrain, loss_fn_retrain, optimizer_retrain, benign_trainloader, computing_device)
+            val_loss_retrain, val_f1_retrain, val_recall_retrain = models.val(model2_retrain, loss_fn_retrain, valloader, computing_device)
+
+            print(f"model2_retrain | TrainLoss {train_loss_retrain:.3f} | Val: loss {val_loss_retrain:.3f}, f1 {val_f1_retrain:.3f}, recall {val_recall_retrain:.3f}")
+
+
+            # 测量模型间相似度
+            model1retrain_cossim = distance.model_cossim(model1, model2_retrain)
+            print(f"model1retrain_cossim: {model1retrain_cossim}")
+
+            if epoch is not unlearning_epochs-1:
+                print("----- ----- ----- ----- ----- -----")
+        print("----- ----- ----- unlearning ended ----- ----- -----")
 
     # save_data([train_loss_1_overall,
     #           val_loss_1_overall,
@@ -271,7 +332,7 @@ def main():
     # 保存模型训练损失    
     draw.models_loss(overall_rounds, num_epochs, train_loss_1_overall, val_loss_1_overall, train_loss_2_overall, val_loss_2_overall)
     
-    print("----- ----- ----- all finished, exit ----- ----- -----")
+    print("----- ----- ----- all finished, exit ----- ----- -----\n")
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, f1_score, recall_score
 
 draw_scale_factor = 1
 draw_dpi = 300
@@ -112,4 +112,27 @@ def models_loss(overall_rounds, num_epochs, train_loss_1_overall, val_loss_1_ove
     plt.savefig(path, bbox_inches='tight', pad_inches=0.1)
     
     print(f"draw [{path}] finished")
-  
+
+# TODO: 似乎不用每一轮结束后都输出混淆矩阵
+def confusion_mat(real_labels, pre_labels, name):
+    cm = confusion_matrix(real_labels, pre_labels)
+
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+    disp.plot(cmap=plt.cm.Blues)
+    # plt.show()
+    
+    path = f"./figs/{name}.png"
+    plt.savefig(path, bbox_inches='tight', pad_inches=0.1)
+
+    # 计算总体F1和召回率
+    # overall_f1 = f1_score(real_labels, pre_labels, average='weighted')
+    # overall_recall = recall_score(real_labels, pre_labels, average='weighted')
+
+    # # 计算各类别的F1和召回率
+    # f1_per_class = f1_score(real_labels, pre_labels, average=None)
+    # recall_per_class = recall_score(real_labels, pre_labels, average=None)
+
+    # print("Overall F1 Score:", overall_f1)
+    # print("Overall Recall:", overall_recall)
+    # print("F1 Score per class:", f1_per_class)
+    # print("Recall per class:", recall_per_class)
