@@ -289,13 +289,11 @@ def main():
 
 
         print("model 1 training...")
-        for epoch in tqdm(range(unlearning_epochs)):
+        for epoch in range(unlearning_epochs):
             # model1也要继续训练
             train_loss_1 = models.train(model1, loss_fn1, optimizer1, benign_trainloader, computing_device)
-            # val_loss_1, val_f1_1, val_recall_1 = models.val(model1, loss_fn1, valloader, computing_device)
-            
-            # print(f"model 1 | TrainLoss {train_loss_1:.3f} | Val: loss {val_loss_1:.3f}, f1 {val_f1_1:.3f}, recall {val_recall_1:.3f}")
-
+            print(train_loss_1)
+        print()
 
         for epoch in range(unlearning_epochs):
             print(f"Round {now_round+1}/{overall_rounds} | Unlearning Epoch {epoch+1}/{unlearning_epochs}")
