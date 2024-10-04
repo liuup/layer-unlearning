@@ -137,8 +137,8 @@ def get_poison_dataset(batch, poison_ratio):
     only_posion_loader = DataLoader(poison_dataset, batch_size=batch, shuffle=True, num_workers=num_workers)
 
     # 正常数据
-    # benign_trainloader = DataLoader(remaining_dataset, batch_size=batch, shuffle=True, num_workers=num_workers)
-    benign_trainloader = DataLoader(train_dataset, batch_size=batch, shuffle=True, num_workers=num_workers)
+    benign_trainloader = DataLoader(remaining_dataset, batch_size=batch, shuffle=True, num_workers=num_workers)
+    # benign_trainloader = DataLoader(train_dataset, batch_size=batch, shuffle=True, num_workers=num_workers)
 
     # 正常数据 + 包含固定比例的毒害数据
     poison_trainloader = DataLoader(final_dataset, batch_size=batch, shuffle=True, num_workers=num_workers)
