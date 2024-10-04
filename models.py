@@ -50,6 +50,18 @@ def get_model_params_amount(model):
     return sum(p.numel() for p in model.parameters())
 
 
+# 获取模型所有的层
+def get_layers(model):
+    layers = []
+    for name, _ in model.named_parameters():
+        # print(name)
+        name = name.replace(".weight", "")
+        name = name.replace(".bias", "")
+        if name not in layers:
+            layers.append(name)
+    return layers   # ['cnn.0', 'cnn.3', 'cnn.6', 'cnn.10', 'cnn.13']
+
+
 # 训练
 def train(model, loss_fn, optimizer, trainloader, computing_device):
     # training
@@ -97,6 +109,8 @@ def val(model, loss_fn, valloader, computing_device):
     
     f1 = f1_score(real_labels, pre_labels, average='weighted')
     recall = recall_score(real_labels, pre_labels, average='weighted')
+
+    f1_perclass = f1_score(real_labels, pre_labels, average=None)
     
     # overall_f1 = f1_score(y_true, y_pred, average='weighted')
     # overall_recall = recall_score(y_true, y_pred, average='weighted')
