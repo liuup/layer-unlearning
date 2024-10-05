@@ -1,10 +1,12 @@
 # layer-unlearning
 
+A simple version: https://github.com/liuup/unlearning_hypothesis_1
+
 1. Clone the repo
     ```
     git clone https://github.com/liuup/layer-unlearning
     ```
-3. Params description  
+2. Params description  
    - `--model` or `-m`: choose the model: `resnet18` or `cnn`
    - `--batch` or `-b`: batch size
    - `--lr` or `-lr`: learning rate
@@ -14,7 +16,7 @@
    - `--unlearn_k` or `-uk`: unlearning model layers
    - `--poison` or `-p`: poison data ratio
 
-4. Run the code in the local
+3. Run the code in the local
     ```
     cd layer-unlerarning
 
