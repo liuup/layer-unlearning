@@ -28,3 +28,12 @@ def adjust_cfk(model, k):
             count += 1  
             if count == len(cancel_gradient):   # 提前退出
                 break
+
+# lsc_euk 按照层间相似度从大到小的顺序，再训练偏移最大的k层
+def adjust_lsc_euk(model, k, layers):
+    pass
+
+
+# lsc_cfk 按照层间相似度从大到小的顺序，随机初始化偏移最大的k层
+def adjust_lsc_cfk(model, k, layers):
+    pass

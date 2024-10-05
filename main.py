@@ -114,6 +114,11 @@ def main():
 
     print("----- ----- ----- train start ----- ----- -----")
 
+    
+    # 获取模型的所有层，每一层都是weight+bias
+    layers = models.get_layers(base_model)
+    print(f"model layers: {layers}")
+
 
     l2_normal = 0.001   # 撒一点正则
     print(f"weight_decay: {l2_normal}")
@@ -128,6 +133,9 @@ def main():
     model1base_cossim_overall = []
     model2base_cossim_overall = []
     model12_cossim_overall = []
+
+    # 三个模型层间相似度 多伦实验的记录
+    model1base_layer_cossim_overall = []
     
     # time_all = 0    # 消耗的总时长，单位s
     overall_rounds = args.round # 要跑多少次实验，用于计算多次平均和误差
@@ -151,7 +159,7 @@ def main():
 
         # print("Initial lr: ", lr_scheduler1.optimizer.param_groups[0]["lr"])
 
-        # 本次实验的临时记录
+        # 本轮实验的临时记录
         train_loss_1_once = []
         val_loss_1_once = []
         train_loss_2_once = []
@@ -160,6 +168,8 @@ def main():
         model1base_cossim_once = []
         model2base_cossim_once = []
         model12_cossim_once = []
+
+        model1base_layer_cossim_once = []
         
         num_epochs = int(args.epoch) # 要训练多少个epoch
 
@@ -205,15 +215,12 @@ def main():
             model12_cossim_once.append(model12_cossim)
 
 
+            # 测量模型层间相似度
+            model1base_layer_cossim = distance.layer_cossim(base_model, model1, layers)
+            # print(model1base_layer_cossim)
+            model1base_layer_cossim_once.append(model1base_layer_cossim)
 
-            # 测量model1与base_model之间层的相似度
-            # for idx, k, in enumerate(model_layers):
-            #     tensor_base = base_model.state_dict()[k].flatten()
-            #     tensor_tmp = model1.state_dict()[k].flatten()
-            #     layer_cos_sim = F.cosine_similarity(tensor_base.unsqueeze(0), tensor_tmp.unsqueeze(0)).item()
-            #     layer_f1 = F.pairwise_distance(tensor_base.unsqueeze(0), tensor_tmp.unsqueeze(0)).item()
-            #     # print(f"Model 1 and base, {k}, {layer_cos_sim}")
-            #     wandb.log({f"model1_base_cossim_{k}": layer_cos_sim, f"model1_base_l1_{k}": layer_f1})
+
                 
             td = time.perf_counter()    # 打一个时间戳 
             # time_all += (td - ts) 
@@ -250,6 +257,11 @@ def main():
         [[0.9172224402427673, 0.8699432611465454, 0.8396878838539124, 0.8164154887199402, 0.7961679100990295, 0.778178870677948], [0.9217562675476074, 0.8765550255775452, 0.8464365005493164, 0.8227431774139404, 0.8023998141288757, 0.7841235399246216], [0.9203685522079468, 0.8763828873634338, 0.8473725914955139, 0.8242231607437134, 0.8043566346168518, 0.7867005467414856]]
         [[0.9610552787780762, 0.9374012351036072, 0.9235053062438965, 0.9128295183181763, 0.9036226272583008, 0.8948323130607605], [0.9604042768478394, 0.9351911544799805, 0.9180727005004883, 0.9049744009971619, 0.8937346339225769, 0.8840289115905762], [0.9573636054992676, 0.931259036064148, 0.9154381155967712, 0.9040500521659851, 0.8953246474266052, 0.8870700597763062]]
         '''
+
+        model1base_layer_cossim_overall.append(model1base_layer_cossim_once)
+
+
+        print(model1base_layer_cossim_overall)
         
         '''
         在这里继续unlearning
@@ -285,72 +297,72 @@ def main():
         # 5. 测试model2按照层间相似度从大到小的顺序，再训练偏移最大的k层，得到model2_lsc_cfk
 
 
-        unlearn_k = args.unlearn_k
+        # unlearn_k = args.unlearn_k
 
 
-        # 1. 测试model2在正常数据集上再训练,得到model2_retrain
-        model2_retrain = copy.deepcopy(model2)
-        loss_fn_retrain = nn.CrossEntropyLoss()
-        optimizer_retrain = torch.optim.Adam(model2_retrain.parameters(), lr=float(args.lr), weight_decay=l2_normal)
+        # # 1. 测试model2在正常数据集上再训练,得到model2_retrain
+        # model2_retrain = copy.deepcopy(model2)
+        # loss_fn_retrain = nn.CrossEntropyLoss()
+        # optimizer_retrain = torch.optim.Adam(model2_retrain.parameters(), lr=float(args.lr), weight_decay=l2_normal)
 
-        # 2. 测试model2在正常数据集上再训练后k层的效果,得到model2_euk
-        model2_euk = copy.deepcopy(model2)
-        unlearning.adjust_euk(model2_euk, unlearn_k)
-        loss_fn_euk = nn.CrossEntropyLoss()
-        optimizer_euk = torch.optim.Adam(model2_euk.parameters(), lr=float(args.lr), weight_decay=l2_normal)
+        # # 2. 测试model2在正常数据集上再训练后k层的效果,得到model2_euk
+        # model2_euk = copy.deepcopy(model2)
+        # unlearning.adjust_euk(model2_euk, unlearn_k)
+        # loss_fn_euk = nn.CrossEntropyLoss()
+        # optimizer_euk = torch.optim.Adam(model2_euk.parameters(), lr=float(args.lr), weight_decay=l2_normal)
 
-        # 3. 测试model2后k层随机初始化参数，重新训练后k层，得到model2_cfk
-        model2_cfk = copy.deepcopy(model2)
-        unlearning.adjust_cfk(model2_cfk, unlearn_k)
-        loss_fn_cfk = nn.CrossEntropyLoss()
-        optimizer_cfk = torch.optim.Adam(model2_cfk.parameters(), lr=float(args.lr), weight_decay=l2_normal)
+        # # 3. 测试model2后k层随机初始化参数，重新训练后k层，得到model2_cfk
+        # model2_cfk = copy.deepcopy(model2)
+        # unlearning.adjust_cfk(model2_cfk, unlearn_k)
+        # loss_fn_cfk = nn.CrossEntropyLoss()
+        # optimizer_cfk = torch.optim.Adam(model2_cfk.parameters(), lr=float(args.lr), weight_decay=l2_normal)
 
 
         
-        # 总的来说 unlearning_epochs次数要少一些
-        unlearning_epochs = args.unlearn_epoch
+        # # 总的来说 unlearning_epochs次数要少一些
+        # unlearning_epochs = args.unlearn_epoch
 
-        print("model1 training...")
-        for epoch in range(unlearning_epochs):
-            # model1也要继续训练
-            train_loss_1 = models.train(model1, loss_fn1, optimizer1, benign_trainloader, computing_device)
-            print(f"epoch {epoch}/{unlearning_epochs}, model1 train_loss: {train_loss_1}")
-        print()
-
-
-        for epoch in range(unlearning_epochs):
-            print(f"Round {now_round+1}/{overall_rounds} | Unlearning Epoch {epoch+1}/{unlearning_epochs}")
-
-            # 1. 测试model2在正常数据集上再训练,得到model2_retrain
-            train_loss_retrain = models.train(model2_retrain, loss_fn_retrain, optimizer_retrain, benign_trainloader, computing_device)
-            val_loss_retrain, val_f1_retrain, val_recall_retrain = models.val(model2_retrain, loss_fn_retrain, valloader, computing_device)
-            print(f"model2_retrain | TrainLoss {train_loss_retrain:.3f} | Val: loss {val_loss_retrain:.3f}, f1 {val_f1_retrain:.3f}, recall {val_recall_retrain:.3f}")
-
-            # 2. 测试model2在正常数据集上再训练后k层的效果,得到model2_euk
-            train_loss_euk = models.train(model2_euk, loss_fn_euk, optimizer_euk, benign_trainloader, computing_device)
-            val_loss_euk, val_f1_euk, val_recall_euk = models.val(model2_euk, loss_fn_euk, valloader, computing_device)
-            print(f"model2_euk | TrainLoss {train_loss_euk:.3f} | Val: loss {val_loss_euk:.3f}, f1 {val_f1_euk:.3f}, recall {val_recall_euk:.3f}")
-
-            # 3. 测试model2后k层随机初始化参数，重新训练后k层，得到model2_cfk
-            train_loss_cfk = models.train(model2_cfk, loss_fn_cfk, optimizer_cfk, benign_trainloader, computing_device)
-            val_loss_cfk, val_f1_cfk, val_recall_cfk = models.val(model2_cfk, loss_fn_cfk, valloader, computing_device)
-            print(f"model2_cfk | TrainLoss {train_loss_cfk:.3f} | Val: loss {val_loss_cfk:.3f}, f1 {val_f1_cfk:.3f}, recall {val_recall_cfk:.3f}")
+        # print("model1 training...")
+        # for epoch in range(unlearning_epochs):
+        #     # model1也要继续训练
+        #     train_loss_1 = models.train(model1, loss_fn1, optimizer1, benign_trainloader, computing_device)
+        #     print(f"epoch {epoch}/{unlearning_epochs}, model1 train_loss: {train_loss_1}")
+        # print()
 
 
-            # 测量模型间相似度
-            model1retrain_cossim = distance.model_cossim(model1, model2_retrain)
-            print(f"model1retrain_cossim: {model1retrain_cossim}")
-            # TODO: 还要通过每一类的f1来判断unlearning效果
+        # for epoch in range(unlearning_epochs):
+        #     print(f"Round {now_round+1}/{overall_rounds} | Unlearning Epoch {epoch+1}/{unlearning_epochs}")
 
-            model1euk_cossim = distance.model_cossim(model1, model2_euk)
-            print(f"model1euk_cossim: {model1euk_cossim}")
+        #     # 1. 测试model2在正常数据集上再训练,得到model2_retrain
+        #     train_loss_retrain = models.train(model2_retrain, loss_fn_retrain, optimizer_retrain, benign_trainloader, computing_device)
+        #     val_loss_retrain, val_f1_retrain, val_recall_retrain = models.val(model2_retrain, loss_fn_retrain, valloader, computing_device)
+        #     print(f"model2_retrain | TrainLoss {train_loss_retrain:.3f} | Val: loss {val_loss_retrain:.3f}, f1 {val_f1_retrain:.3f}, recall {val_recall_retrain:.3f}")
 
-            model1cfk_cossim = distance.model_cossim(model1, model2_cfk)
-            print(f"model1cfk_cossim: {model1cfk_cossim}")
+        #     # 2. 测试model2在正常数据集上再训练后k层的效果,得到model2_euk
+        #     train_loss_euk = models.train(model2_euk, loss_fn_euk, optimizer_euk, benign_trainloader, computing_device)
+        #     val_loss_euk, val_f1_euk, val_recall_euk = models.val(model2_euk, loss_fn_euk, valloader, computing_device)
+        #     print(f"model2_euk | TrainLoss {train_loss_euk:.3f} | Val: loss {val_loss_euk:.3f}, f1 {val_f1_euk:.3f}, recall {val_recall_euk:.3f}")
+
+        #     # 3. 测试model2后k层随机初始化参数，重新训练后k层，得到model2_cfk
+        #     train_loss_cfk = models.train(model2_cfk, loss_fn_cfk, optimizer_cfk, benign_trainloader, computing_device)
+        #     val_loss_cfk, val_f1_cfk, val_recall_cfk = models.val(model2_cfk, loss_fn_cfk, valloader, computing_device)
+        #     print(f"model2_cfk | TrainLoss {train_loss_cfk:.3f} | Val: loss {val_loss_cfk:.3f}, f1 {val_f1_cfk:.3f}, recall {val_recall_cfk:.3f}")
 
 
-            if epoch is not unlearning_epochs-1:
-                print("----- ----- ----- ----- ----- -----")
+        #     # 测量模型间相似度
+        #     model1retrain_cossim = distance.model_cossim(model1, model2_retrain)
+        #     print(f"model1retrain_cossim: {model1retrain_cossim}")
+        #     # TODO: 还要通过每一类的f1来判断unlearning效果
+
+        #     model1euk_cossim = distance.model_cossim(model1, model2_euk)
+        #     print(f"model1euk_cossim: {model1euk_cossim}")
+
+        #     model1cfk_cossim = distance.model_cossim(model1, model2_cfk)
+        #     print(f"model1cfk_cossim: {model1cfk_cossim}")
+
+
+        #     if epoch is not unlearning_epochs-1:
+        #         print("----- ----- ----- ----- ----- -----")
         print("----- ----- ----- unlearning ended ----- ----- -----\n")
 
     # save_data([train_loss_1_overall,
@@ -365,15 +377,79 @@ def main():
 
     print("----- ----- ----- draw start ----- ----- -----")
     
-    # 保存模型间余弦相似度图像
-    draw.models_cossim(overall_rounds, num_epochs, model1base_cossim_overall, model2base_cossim_overall, model12_cossim_overall)
-    # 保存模型训练损失    
-    draw.models_loss(overall_rounds, num_epochs, train_loss_1_overall, val_loss_1_overall, train_loss_2_overall, val_loss_2_overall)
+    # # 保存模型间余弦相似度图像
+    # draw.models_cossim(overall_rounds, num_epochs, model1base_cossim_overall, model2base_cossim_overall, model12_cossim_overall)
+    # # 保存模型训练损失    
+    # draw.models_loss(overall_rounds, num_epochs, train_loss_1_overall, val_loss_1_overall, train_loss_2_overall, val_loss_2_overall)
     
     print("----- ----- ----- all finished, exit ----- ----- -----\n")
 
 
+# 模型层间偏移的图
+def layers_cossim(overall_rounds, num_epochs, layer_cossim_overall):
+     # 多加一个初始值
+    # epochs = np.array([0])
+    # epochs = np.concatenate((epochs, [(i+1) for i in range(num_epochs)]))
+
+    epochs = [(i+1) for i in range(num_epochs)]
+
+    # 获取所有的层
+    layers = [name for name, cossim in layer_cossim_overall[0][0]]
+    
+    # print(layers)
+
+    # 自定义颜色
+    colors = plt.cm.get_cmap('tab20', len(layers))  # 使用colormap生成45种颜色
+
+    # 创建图形
+    plt.figure(dpi=300)
+
+    for k, layer in enumerate(layers):
+        # 计算每一层在每一个epoch的平均值和标准误差
+        avg = np.array([])    # 平均值
+        std = np.array([])    # 标准误差
+    
+        for j in range(num_epochs):
+            tmp = []            
+            for i in range(overall_rounds):
+                tmp.append(layer_cossim_overall[i][j][k][1])
+            print(layer, tmp)
+
+            avg = np.append(avg, np.mean(tmp))
+            std = np.append(std, np.std(tmp))
+        
+        print(avg)        
+        print(std)
+
+        plt.plot(epochs, avg, color=colors(k), label=layer)
+        plt.fill_between(epochs, avg - std, avg + std, color=colors(k), alpha=0.3, edgecolor='none')
+
+    plt.xlabel('Epochs')
+    plt.ylabel('cossim')
+    plt.title('model layers')
+    plt.legend()
+
+    path = "./figs/model_layers_cossim.png"
+    plt.savefig(path, bbox_inches='tight', pad_inches=0.1)
+
     
 if __name__ == "__main__":
-    main()
-    
+    # main()
+
+
+    overall_rounds = 2
+    num_epochs = 3
+
+    layer_cossim_overall = [
+        [[('cnn.0', 0.9452337622642517), ('cnn.3', 0.4965028762817383), ('cnn.6', 0.22464720904827118), ('cnn.10', 0.051404230296611786), ('cnn.13', 0.4083559811115265)], 
+        [('cnn.0', 0.9085733890533447), ('cnn.3', 0.3668251037597656), ('cnn.6', 0.13958489894866943), ('cnn.10', 0.0227242149412632), ('cnn.13', 0.3458038866519928)],
+        [('cnn.0', 0.8685733890533447), ('cnn.3', 0.3468251037597656), ('cnn.6', 0.11958489894866943), ('cnn.10', 0.0127242149412632), ('cnn.13', 0.3058038866519928)]],
+
+        [[('cnn.0', 0.9152337622642517), ('cnn.3', 0.4965028762817383), ('cnn.6', 0.22464720904827118), ('cnn.10', 0.051404230296611786), ('cnn.13', 0.4083559811115265)], 
+        [('cnn.0', 0.9085733890533447), ('cnn.3', 0.3668251037597656), ('cnn.6', 0.13958489894866943), ('cnn.10', 0.0227242149412632), ('cnn.13', 0.3458038866519928)],
+        [('cnn.0', 0.8685733890533447), ('cnn.3', 0.3468251037597656), ('cnn.6', 0.11958489894866943), ('cnn.10', 0.0127242149412632), ('cnn.13', 0.3058038866519928)]]
+        ]
+
+    # 画一下模型的层间偏移的图
+    layers_cossim(overall_rounds, num_epochs, layer_cossim_overall)
+

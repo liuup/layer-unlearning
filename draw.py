@@ -18,7 +18,7 @@ def calc_avg(overall_rounds, num_epochs, data_overall):
 
 # 对跑完的所有数据计算每一轮的标准误差，用于后续绘图
 def calc_std(overall_rounds, num_epochs, data_overall):
-    std = np.array([])    # 方差
+    std = np.array([])    # 标准误差
     for j in range(num_epochs):
         tmp = []
         for i in range(overall_rounds):
@@ -30,18 +30,31 @@ def calc_std(overall_rounds, num_epochs, data_overall):
 # 绘制模型间的余弦相似度图像
 def models_cossim(overall_rounds, num_epochs, model1base_cossim_overall, model2base_cossim_overall, model12_cossim_overall):
     # 多加一个初始值
-    epochs = np.array([0])
-    epochs = np.concatenate((epochs, [(i+1) for i in range(num_epochs)]))
+    # epochs = np.array([0])
+    # epochs = np.concatenate((epochs, [(i+1) for i in range(num_epochs)]))
+
+    epochs = [(i+1) for i in range(num_epochs)]
     
     # 多加一个初始值
-    model1base_cossim_avg = np.concatenate((np.array([1]), calc_avg(overall_rounds, num_epochs, model1base_cossim_overall)))
-    model1base_cossim_std = np.concatenate((np.array([0]), calc_std(overall_rounds, num_epochs, model1base_cossim_overall)))
+    # model1base_cossim_avg = np.concatenate((np.array([1]), calc_avg(overall_rounds, num_epochs, model1base_cossim_overall)))
+    # model1base_cossim_std = np.concatenate((np.array([0]), calc_std(overall_rounds, num_epochs, model1base_cossim_overall)))
+
+    model1base_cossim_avg = calc_avg(overall_rounds, num_epochs, model1base_cossim_overall)
+    model1base_cossim_std = calc_std(overall_rounds, num_epochs, model1base_cossim_overall)
     
-    model2base_cossim_avg = np.concatenate((np.array([1]), calc_avg(overall_rounds, num_epochs, model2base_cossim_overall)))
-    model2base_cossim_std = np.concatenate((np.array([0]), calc_std(overall_rounds, num_epochs, model2base_cossim_overall)))
+    # model2base_cossim_avg = np.concatenate((np.array([1]), calc_avg(overall_rounds, num_epochs, model2base_cossim_overall)))
+    # model2base_cossim_std = np.concatenate((np.array([0]), calc_std(overall_rounds, num_epochs, model2base_cossim_overall)))
+
+    model2base_cossim_avg = calc_avg(overall_rounds, num_epochs, model2base_cossim_overall)
+    model2base_cossim_std = calc_std(overall_rounds, num_epochs, model2base_cossim_overall)
+
     
-    model12_cossim_avg = np.concatenate((np.array([1]), calc_avg(overall_rounds, num_epochs, model12_cossim_overall)))
-    model12_cossim_std = np.concatenate((np.array([0]), calc_std(overall_rounds, num_epochs, model12_cossim_overall)))
+    # model12_cossim_avg = np.concatenate((np.array([1]), calc_avg(overall_rounds, num_epochs, model12_cossim_overall)))
+    # model12_cossim_std = np.concatenate((np.array([0]), calc_std(overall_rounds, num_epochs, model12_cossim_overall)))
+
+    model12_cossim_avg = calc_avg(overall_rounds, num_epochs, model12_cossim_overall)
+    model12_cossim_std = calc_std(overall_rounds, num_epochs, model12_cossim_overall)
+
 
     # 创建图形
     plt.figure(dpi=draw_dpi)
