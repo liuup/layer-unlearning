@@ -242,26 +242,15 @@ def main():
         val_loss_1_overall.append(val_loss_1_once)
         train_loss_2_overall.append(train_loss_2_once)
         val_loss_2_overall.append(val_loss_2_once)
-        '''
-        [[1.9537137228509653, 1.6505359225260936, 1.5553025330424004], [1.960306614256271, 1.6561540188386923, 1.5505894181673483]]
-        [[1.6484441379957562, 1.4853050935117504, 1.3997237365457076], [1.6371479155142097, 1.4832487408118913, 1.4066149962099292]]
-        [[1.9494564316766647, 1.6506705476195, 1.5429352588970642], [1.9587739834090327, 1.6642459130957914, 1.5598751205922392]]
-        [[1.6296390068681934, 1.4783480091939998, 1.397136057479472], [1.6479386227040351, 1.4816393444809732, 1.4067770303050173]]
-        '''
     
         model1base_cossim_overall.append(model1base_cossim_once)
         model2base_cossim_overall.append(model2base_cossim_once)
         model12_cossim_overall.append(model12_cossim_once)
-        '''
-        [[0.925673246383667, 0.8809350728988647, 0.8507837653160095, 0.8269657492637634, 0.8060936331748962, 0.7869966626167297], [0.9231333136558533, 0.8769853711128235, 0.8460282683372498, 0.8211515545845032, 0.7996971011161804, 0.7805249691009521], [0.9218568801879883, 0.8746494054794312, 0.8446235060691833, 0.8206176161766052, 0.8001297116279602, 0.7809889316558838]]
-        [[0.9172224402427673, 0.8699432611465454, 0.8396878838539124, 0.8164154887199402, 0.7961679100990295, 0.778178870677948], [0.9217562675476074, 0.8765550255775452, 0.8464365005493164, 0.8227431774139404, 0.8023998141288757, 0.7841235399246216], [0.9203685522079468, 0.8763828873634338, 0.8473725914955139, 0.8242231607437134, 0.8043566346168518, 0.7867005467414856]]
-        [[0.9610552787780762, 0.9374012351036072, 0.9235053062438965, 0.9128295183181763, 0.9036226272583008, 0.8948323130607605], [0.9604042768478394, 0.9351911544799805, 0.9180727005004883, 0.9049744009971619, 0.8937346339225769, 0.8840289115905762], [0.9573636054992676, 0.931259036064148, 0.9154381155967712, 0.9040500521659851, 0.8953246474266052, 0.8870700597763062]]
-        '''
 
         model1base_layer_cossim_overall.append(model1base_layer_cossim_once)
 
 
-        print(model1base_layer_cossim_overall)
+        # print(model1base_layer_cossim_overall)
         
         '''
         在这里继续unlearning
@@ -377,10 +366,12 @@ def main():
 
     print("----- ----- ----- draw start ----- ----- -----")
     
-    # # 保存模型间余弦相似度图像
-    # draw.models_cossim(overall_rounds, num_epochs, model1base_cossim_overall, model2base_cossim_overall, model12_cossim_overall)
-    # # 保存模型训练损失    
-    # draw.models_loss(overall_rounds, num_epochs, train_loss_1_overall, val_loss_1_overall, train_loss_2_overall, val_loss_2_overall)
+    # 保存模型间余弦相似度图像
+    draw.models_cossim(overall_rounds, num_epochs, model1base_cossim_overall, model2base_cossim_overall, model12_cossim_overall)
+    # 保存模型训练损失    
+    draw.models_loss(overall_rounds, num_epochs, train_loss_1_overall, val_loss_1_overall, train_loss_2_overall, val_loss_2_overall)
+
+    layers_cossim(overall_rounds, num_epochs, model1base_layer_cossim_overall)
     
     print("----- ----- ----- all finished, exit ----- ----- -----\n")
 
@@ -399,7 +390,7 @@ def layers_cossim(overall_rounds, num_epochs, layer_cossim_overall):
     # print(layers)
 
     # 自定义颜色
-    colors = plt.cm.get_cmap('tab20', len(layers))  # 使用colormap生成45种颜色
+    colors = plt.get_cmap('tab20', len(layers))
 
     # 创建图形
     plt.figure(dpi=300)
@@ -413,13 +404,13 @@ def layers_cossim(overall_rounds, num_epochs, layer_cossim_overall):
             tmp = []            
             for i in range(overall_rounds):
                 tmp.append(layer_cossim_overall[i][j][k][1])
-            print(layer, tmp)
+            # print(layer, tmp)
 
             avg = np.append(avg, np.mean(tmp))
             std = np.append(std, np.std(tmp))
         
-        print(avg)        
-        print(std)
+        # print(avg)        
+        # print(std)
 
         plt.plot(epochs, avg, color=colors(k), label=layer)
         plt.fill_between(epochs, avg - std, avg + std, color=colors(k), alpha=0.3, edgecolor='none')
@@ -429,27 +420,12 @@ def layers_cossim(overall_rounds, num_epochs, layer_cossim_overall):
     plt.title('model layers')
     plt.legend()
 
+    # TODO: 调整一下保存名称，调用多次会覆盖
     path = "./figs/model_layers_cossim.png"
     plt.savefig(path, bbox_inches='tight', pad_inches=0.1)
 
     
 if __name__ == "__main__":
-    # main()
+    main()
 
-
-    overall_rounds = 2
-    num_epochs = 3
-
-    layer_cossim_overall = [
-        [[('cnn.0', 0.9452337622642517), ('cnn.3', 0.4965028762817383), ('cnn.6', 0.22464720904827118), ('cnn.10', 0.051404230296611786), ('cnn.13', 0.4083559811115265)], 
-        [('cnn.0', 0.9085733890533447), ('cnn.3', 0.3668251037597656), ('cnn.6', 0.13958489894866943), ('cnn.10', 0.0227242149412632), ('cnn.13', 0.3458038866519928)],
-        [('cnn.0', 0.8685733890533447), ('cnn.3', 0.3468251037597656), ('cnn.6', 0.11958489894866943), ('cnn.10', 0.0127242149412632), ('cnn.13', 0.3058038866519928)]],
-
-        [[('cnn.0', 0.9152337622642517), ('cnn.3', 0.4965028762817383), ('cnn.6', 0.22464720904827118), ('cnn.10', 0.051404230296611786), ('cnn.13', 0.4083559811115265)], 
-        [('cnn.0', 0.9085733890533447), ('cnn.3', 0.3668251037597656), ('cnn.6', 0.13958489894866943), ('cnn.10', 0.0227242149412632), ('cnn.13', 0.3458038866519928)],
-        [('cnn.0', 0.8685733890533447), ('cnn.3', 0.3468251037597656), ('cnn.6', 0.11958489894866943), ('cnn.10', 0.0127242149412632), ('cnn.13', 0.3058038866519928)]]
-        ]
-
-    # 画一下模型的层间偏移的图
-    layers_cossim(overall_rounds, num_epochs, layer_cossim_overall)
 
