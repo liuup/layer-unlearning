@@ -21,6 +21,7 @@ import models
 import distance
 import draw
 import datasets
+import unlearning
 
 
 classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
@@ -294,13 +295,13 @@ def main():
 
         # 2. 测试model2在正常数据集上再训练后k层的效果,得到model2_euk
         model2_euk = copy.deepcopy(model2)
-        adjust_euk(model2_euk, unlearn_k)
+        unlearning.adjust_euk(model2_euk, unlearn_k)
         loss_fn_euk = nn.CrossEntropyLoss()
         optimizer_euk = torch.optim.Adam(model2_euk.parameters(), lr=float(args.lr), weight_decay=l2_normal)
 
         # 3. 测试model2后k层随机初始化参数，重新训练后k层，得到model2_cfk
         model2_cfk = copy.deepcopy(model2)
-        adjust_cfk(model2_cfk, unlearn_k)
+        unlearning.adjust_cfk(model2_cfk, unlearn_k)
         loss_fn_cfk = nn.CrossEntropyLoss()
         optimizer_cfk = torch.optim.Adam(model2_cfk.parameters(), lr=float(args.lr), weight_decay=l2_normal)
 
@@ -370,36 +371,6 @@ def main():
     draw.models_loss(overall_rounds, num_epochs, train_loss_1_overall, val_loss_1_overall, train_loss_2_overall, val_loss_2_overall)
     
     print("----- ----- ----- all finished, exit ----- ----- -----\n")
-
-
-# EuK unlearning，重新训练后k层
-def adjust_euk(model, k):
-    all_layers = [name for name, _ in model.named_parameters()]
-    cancel_gradient = []
-    for i in range(len(all_layers) - k * 2):    # x2的原因是因为既有weight也有bias
-        cancel_gradient.append(all_layers[i])
-
-    for name, param in model.named_parameters():
-        if name in cancel_gradient:
-            param.requires_grad = False  # 前面的层取消梯度
-        else:
-            nn.init.normal_(param, mean=0.0, std=1) # 后面的层随机初始化参数
-
-   
-# CfK unlearning，继续训练后k层
-def adjust_cfk(model, k):
-    all_layers = [name for name, _ in model.named_parameters()]
-    cancel_gradient = []
-    for i in range(len(all_layers) - k * 2):    # x2的原因是因为既有weight也有bias
-        cancel_gradient.append(all_layers[i])
-    count = 0
-    for name, param in model.named_parameters():    # 取消梯度
-        if name in cancel_gradient:
-            param.requires_grad = False
-            count += 1  
-            if count == len(cancel_gradient):   # 提前退出
-                break
-
 
 
     
