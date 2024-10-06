@@ -214,7 +214,7 @@ def confusion_mat(real_labels, pre_labels, figname):
     disp.plot(cmap=plt.cm.Blues)
     # plt.show()
     
-    path = f"./figs/{name}.png"
+    path = f"./figs/{figname}.png"
     plt.savefig(path, bbox_inches='tight', pad_inches=0.1)
 
     # 计算总体F1和召回率
