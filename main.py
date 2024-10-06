@@ -137,6 +137,8 @@ def main():
 
     # 三个模型层间相似度 多伦实验的记录
     model1base_layer_cossim_overall = []
+    model2base_layer_cossim_overall = []
+    model12_layer_cossim_overall = []
     
     # time_all = 0    # 消耗的总时长，单位s
     overall_rounds = args.round # 要跑多少次实验，用于计算多次平均和误差
@@ -171,6 +173,9 @@ def main():
         model12_cossim_once = []
 
         model1base_layer_cossim_once = []
+        model2base_layer_cossim_once = []
+        model12_layer_cossim_once = []
+
         
         num_epochs = int(args.epoch) # 要训练多少个epoch
 
@@ -218,9 +223,12 @@ def main():
 
             # 测量模型层间相似度
             model1base_layer_cossim = distance.layer_cossim(base_model, model1, layers)
-            # print(model1base_layer_cossim)
-            model1base_layer_cossim_once.append(model1base_layer_cossim)
+            model2base_layer_cossim = distance.layer_cossim(base_model, model2, layers)
+            model12_layer_cossim = distance.layer_cossim(model1, model2, layers)
 
+            model1base_layer_cossim_once.append(model1base_layer_cossim)
+            model2base_layer_cossim_once.append(model2base_layer_cossim)
+            model12_layer_cossim_once.append(model12_layer_cossim)
 
                 
             td = time.perf_counter()    # 打一个时间戳 
@@ -249,6 +257,8 @@ def main():
         model12_cossim_overall.append(model12_cossim_once)
 
         model1base_layer_cossim_overall.append(model1base_layer_cossim_once)
+        model2base_layer_cossim_overall.append(model2base_layer_cossim_once)
+        model12_layer_cossim_overall.append(model12_layer_cossim_once)
 
 
         # print(model1base_layer_cossim_overall)
@@ -287,7 +297,7 @@ def main():
         # 5. 测试model2按照层间相似度从大到小的顺序，再训练偏移最大的k层，得到model2_lsc_cfk
 
 
-        # unlearn_k = args.unlearn_k
+        unlearn_k = args.unlearn_k
 
 
         # # 1. 测试model2在正常数据集上再训练,得到model2_retrain
@@ -364,85 +374,30 @@ def main():
     #           model12_cossim_overall])
     
     # print(f"overall time comsuming: {time_all:.2f}s")
-
+    
+    
+    #
+    # end: for now_round in range(overall_rounds):
+    #
+    
     print("----- ----- ----- draw start ----- ----- -----")
     
     # 保存模型间余弦相似度图像
-    draw.models_cossim(overall_rounds, num_epochs, model1base_cossim_overall, model2base_cossim_overall, model12_cossim_overall)
+    draw.models_cossim(overall_rounds, num_epochs, model1base_cossim_overall, model2base_cossim_overall, model12_cossim_overall, "models distance")
     # 保存模型训练损失    
-    draw.models_loss(overall_rounds, num_epochs, train_loss_1_overall, val_loss_1_overall, train_loss_2_overall, val_loss_2_overall)
+    draw.models_loss(overall_rounds, num_epochs, train_loss_1_overall, val_loss_1_overall, train_loss_2_overall, val_loss_2_overall, "models loss")
 
+    # 绘制模型的层间相似度的图
+    draw.layers_cossim(overall_rounds, num_epochs, model1base_layer_cossim_overall, unlearn_k, "model1base_layer")
+    draw.layers_cossim(overall_rounds, num_epochs, model2base_layer_cossim_overall, unlearn_k, "model2base_layer")
+    draw.layers_cossim(overall_rounds, num_epochs, model12_layer_cossim_overall, unlearn_k, "model12_layer")
 
-    print(model1base_layer_cossim_overall)
-    layers_cossim(overall_rounds, num_epochs, model1base_layer_cossim_overall)
+    # 再画一个柱状图
+    draw.bar_graph(overall_rounds, num_epochs, model12_layer_cossim_overall, "mode12 layer")
     
     print("----- ----- ----- all finished, exit ----- ----- -----\n")
 
 
-# 模型层间偏移的图
-def layers_cossim(overall_rounds, num_epochs, layer_cossim_overall, last_k, picname):
-    epochs = [(i+1) for i in range(num_epochs)]
-
-    # 获取所有的层
-    layers = [name for name, cossim in layer_cossim_overall[0][0]]
-
-    # colors = plt.get_cmap('bwr', len(layers)) # 自定义颜色
-
-    # 创建图形
-    plt.figure(dpi=300)
-
-    avgs = []
-    stds = []
-
-    for k, layer in enumerate(layers):
-        # 计算每一层在每一个epoch的平均值和标准误差
-        avg = np.array([])    # 平均值
-        std = np.array([])    # 标准误差
-        for j in range(num_epochs):
-            tmp = []            
-            for i in range(overall_rounds):
-                tmp.append(layer_cossim_overall[i][j][k][1])
-            avg = np.append(avg, np.mean(tmp))
-            std = np.append(std, np.std(tmp))
-        avgs.append(avg)
-        stds.append(std)
-    
-    # 收集最后一个epoch的avg
-    last_avg = []
-    for i, x in enumerate(avgs):
-        last_avg.append(x[num_epochs-1])
-
-    # 找到最小的k层
-    sorted_indices = sorted(enumerate(last_avg), key=lambda x: x[1])
-    k_indices = [x[0] for x in sorted_indices[:last_k]] # 后面可以考虑把3改成k
-    
-    k_colors = plt.get_cmap('bwr', len(k_indices)) # 自定义颜色
-
-    for i in range(len(layers)):
-    
-        avg = avgs[i]
-        std = stds[i]
-        if i in k_indices:
-            # plt.plot(epochs, avg, color=k_colors(i), linestyle="-", linewidth=1, label=layers[i])
-            # plt.fill_between(epochs, avg - std, avg + std, color=k_colors(i), alpha=0.3, edgecolor='none')
-            plt.plot(epochs, avg, linestyle="-", linewidth=1, label=layers[i])
-            plt.fill_between(epochs, avg - std, avg + std,  alpha=0.3, edgecolor='none')
-        else:
-            # plt.plot(epochs, avg, color=colors(i), linestyle="--", linewidth=1)
-            # plt.fill_between(epochs, avg - std, avg + std, color=colors(i), alpha=0.3, edgecolor='none')
-            plt.plot(epochs, avg, linestyle="--", linewidth=0.5)
-            plt.fill_between(epochs, avg - std, avg + std, alpha=0.3, edgecolor='none')
-
-    plt.xlabel('Epochs')
-    plt.ylabel('cossim')
-    plt.title('model layers')
-    plt.legend()
-
-    # TODO: 调整一下保存名称，调用多次会覆盖
-    path = f"./figs/{picname}.png"
-    plt.savefig(path, bbox_inches='tight', pad_inches=0.1)
-
-    
 if __name__ == "__main__":
     main()
 
