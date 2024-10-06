@@ -32,7 +32,8 @@ torch.manual_seed(25)
 '''
 目前想到的点子：
 1. 把模型的参数降到三维，看一下两个模型之间的漂移(算了 好像不能降维)
-2. 
+2. 所选用的k层占总体的参数量？
+3. 如果效果不好的话，还可以总结为什么效果不好
 
 '''
 
@@ -371,49 +372,66 @@ def main():
     # 保存模型训练损失    
     draw.models_loss(overall_rounds, num_epochs, train_loss_1_overall, val_loss_1_overall, train_loss_2_overall, val_loss_2_overall)
 
+
+    print(model1base_layer_cossim_overall)
     layers_cossim(overall_rounds, num_epochs, model1base_layer_cossim_overall)
     
     print("----- ----- ----- all finished, exit ----- ----- -----\n")
 
 
 # 模型层间偏移的图
-def layers_cossim(overall_rounds, num_epochs, layer_cossim_overall):
-     # 多加一个初始值
-    # epochs = np.array([0])
-    # epochs = np.concatenate((epochs, [(i+1) for i in range(num_epochs)]))
-
+def layers_cossim(overall_rounds, num_epochs, layer_cossim_overall, last_k, picname):
     epochs = [(i+1) for i in range(num_epochs)]
 
     # 获取所有的层
     layers = [name for name, cossim in layer_cossim_overall[0][0]]
-    
-    # print(layers)
 
-    # 自定义颜色
-    colors = plt.get_cmap('tab20', len(layers))
+    # colors = plt.get_cmap('bwr', len(layers)) # 自定义颜色
 
     # 创建图形
     plt.figure(dpi=300)
+
+    avgs = []
+    stds = []
 
     for k, layer in enumerate(layers):
         # 计算每一层在每一个epoch的平均值和标准误差
         avg = np.array([])    # 平均值
         std = np.array([])    # 标准误差
-    
         for j in range(num_epochs):
             tmp = []            
             for i in range(overall_rounds):
                 tmp.append(layer_cossim_overall[i][j][k][1])
-            # print(layer, tmp)
-
             avg = np.append(avg, np.mean(tmp))
             std = np.append(std, np.std(tmp))
-        
-        # print(avg)        
-        # print(std)
+        avgs.append(avg)
+        stds.append(std)
+    
+    # 收集最后一个epoch的avg
+    last_avg = []
+    for i, x in enumerate(avgs):
+        last_avg.append(x[num_epochs-1])
 
-        plt.plot(epochs, avg, color=colors(k), label=layer)
-        plt.fill_between(epochs, avg - std, avg + std, color=colors(k), alpha=0.3, edgecolor='none')
+    # 找到最小的k层
+    sorted_indices = sorted(enumerate(last_avg), key=lambda x: x[1])
+    k_indices = [x[0] for x in sorted_indices[:last_k]] # 后面可以考虑把3改成k
+    
+    k_colors = plt.get_cmap('bwr', len(k_indices)) # 自定义颜色
+
+    for i in range(len(layers)):
+    
+        avg = avgs[i]
+        std = stds[i]
+        if i in k_indices:
+            # plt.plot(epochs, avg, color=k_colors(i), linestyle="-", linewidth=1, label=layers[i])
+            # plt.fill_between(epochs, avg - std, avg + std, color=k_colors(i), alpha=0.3, edgecolor='none')
+            plt.plot(epochs, avg, linestyle="-", linewidth=1, label=layers[i])
+            plt.fill_between(epochs, avg - std, avg + std,  alpha=0.3, edgecolor='none')
+        else:
+            # plt.plot(epochs, avg, color=colors(i), linestyle="--", linewidth=1)
+            # plt.fill_between(epochs, avg - std, avg + std, color=colors(i), alpha=0.3, edgecolor='none')
+            plt.plot(epochs, avg, linestyle="--", linewidth=0.5)
+            plt.fill_between(epochs, avg - std, avg + std, alpha=0.3, edgecolor='none')
 
     plt.xlabel('Epochs')
     plt.ylabel('cossim')
@@ -421,7 +439,7 @@ def layers_cossim(overall_rounds, num_epochs, layer_cossim_overall):
     plt.legend()
 
     # TODO: 调整一下保存名称，调用多次会覆盖
-    path = "./figs/model_layers_cossim.png"
+    path = f"./figs/{picname}.png"
     plt.savefig(path, bbox_inches='tight', pad_inches=0.1)
 
     

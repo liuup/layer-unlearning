@@ -59,13 +59,13 @@ def models_cossim(overall_rounds, num_epochs, model1base_cossim_overall, model2b
     # 创建图形
     plt.figure(dpi=draw_dpi)
 
-    plt.plot(epochs, model1base_cossim_avg, color='orange', label='model1base_cossim')
+    plt.plot(epochs, model1base_cossim_avg, color='orange', linewidth=1, label='model1base_cossim')
     plt.fill_between(epochs, model1base_cossim_avg - draw_scale_factor * model1base_cossim_std, model1base_cossim_avg + draw_scale_factor * model1base_cossim_std, color='orange', alpha=0.3, edgecolor='none')
 
-    plt.plot(epochs, model2base_cossim_avg, color='blue', label='model2base_cossim')
+    plt.plot(epochs, model2base_cossim_avg, color='blue', linewidth=1, label='model2base_cossim')
     plt.fill_between(epochs, model2base_cossim_avg - draw_scale_factor * model2base_cossim_std, model2base_cossim_avg + draw_scale_factor * model2base_cossim_std, color='blue', alpha=0.3, edgecolor='none')
     
-    plt.plot(epochs, model12_cossim_avg, color='red', label='model12_cossim')
+    plt.plot(epochs, model12_cossim_avg, color='red', linewidth=1, label='model12_cossim')
     plt.fill_between(epochs, model12_cossim_avg - draw_scale_factor * model12_cossim_std, model12_cossim_avg + draw_scale_factor * model12_cossim_std, color='red', alpha=0.3, edgecolor='none')
 
     # 添加标签和标题
@@ -101,16 +101,16 @@ def models_loss(overall_rounds, num_epochs, train_loss_1_overall, val_loss_1_ove
     # 创建图形
     plt.figure(dpi=draw_dpi)
     
-    plt.plot(epochs, train_loss_1_avg, color='orange', label='model_1_train_loss')
+    plt.plot(epochs, train_loss_1_avg, color='orange', linewidth=1, label='model_1_train_loss')
     plt.fill_between(epochs, train_loss_1_avg - draw_scale_factor * train_loss_1_std, train_loss_1_avg + draw_scale_factor * train_loss_1_std, color='orange', alpha=0.3, edgecolor='none')
     
-    plt.plot(epochs, val_loss_1_avg, color='blue', label='model_1_val_loss')
+    plt.plot(epochs, val_loss_1_avg, color='blue', linewidth=1, label='model_1_val_loss')
     plt.fill_between(epochs, val_loss_1_avg - draw_scale_factor * val_loss_1_std, val_loss_1_avg + draw_scale_factor * val_loss_1_std, color='blue', alpha=0.3, edgecolor='none')
     
-    plt.plot(epochs, train_loss_2_avg, color='red', label='model_2_train_loss')
+    plt.plot(epochs, train_loss_2_avg, color='red', linewidth=1, label='model_2_train_loss')
     plt.fill_between(epochs, train_loss_2_avg - draw_scale_factor * train_loss_2_std, train_loss_2_avg + draw_scale_factor * train_loss_2_std, color='red', alpha=0.3, edgecolor='none')
     
-    plt.plot(epochs, val_loss_2_avg, color='green', label='model_2_val_loss')
+    plt.plot(epochs, val_loss_2_avg, color='green', linewidth=1, label='model_2_val_loss')
     plt.fill_between(epochs, val_loss_2_avg - draw_scale_factor * val_loss_2_std, val_loss_2_avg + draw_scale_factor * val_loss_2_std, color='green', alpha=0.3, edgecolor='none')
 
     # 添加标签和标题
