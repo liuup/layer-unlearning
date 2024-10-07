@@ -31,7 +31,7 @@ torch.manual_seed(25)
 
 '''
 目前想到的点子：
-1. 把模型的参数降到三维，看一下两个模型之间的漂移(算了 好像不能降维)
+1. 把模型的参数降到二维，看一下两个模型之间的漂移，可以用t-SNE降到二维，参考RETHINKING THE NECESSITY OF LABELS IN BACKDOOR REMOVAL, ICLR2023 Workshop 
 2. 所选用的k层占总体的参数量？层的参数量和偏移量大小有关系吗
 3. 如果效果不好的话，还可以总结为什么效果不好
 4. 或许还能修改损失函数？使其更加靠近模型model1
