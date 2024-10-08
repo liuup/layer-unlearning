@@ -113,7 +113,10 @@ def models_loss(overall_rounds, num_epochs, train_loss_1_overall, val_loss_1_ove
 
 
 # 模型层间偏移的图
-def layers_cossim(overall_rounds, num_epochs, layer_cossim_overall, last_k, picname):
+def layers_cossim(layer_cossim_overall, last_k, picname):
+    overall_rounds = len(layer_cossim_overall)
+    num_epochs = len(layer_cossim_overall[0])
+    
     epochs = [(i+1) for i in range(num_epochs)]
 
     # 获取所有的层
@@ -178,15 +181,33 @@ def layers_cossim(overall_rounds, num_epochs, layer_cossim_overall, last_k, picn
 
 # 绘制模型层间偏移的柱状图
 # TODO: 再加上模型每一层的参数量
-def bar_graph(overall_rounds, num_epochs, layer_cossim_overall, picname):
+def bar_graph(model, layer_cossim_overall, picname):
+    overall_rounds = len(layer_cossim_overall)
+    num_epochs = len(layer_cossim_overall[0])
+    
     # 获取所有的层
     layers = [name for name, _ in layer_cossim_overall[0][0]]
+    index = np.arange(len(layers))
+    params = [0 for _ in range(len(layers))]
     
-    plt.figure(figsize=(6, 8), dpi=300)
+    # 获取所有层的参数量
+    params_amount = {}
+    for name, param in model.named_parameters():
+        params_amount[name] = param.numel()
+    for idx, layer in enumerate(layers):
+        params[idx] += params_amount[layer+".weight"]
+        params[idx] += params_amount[layer+".bias"]
+    
+   # 计算列表中的最大值和最小值
+    max_value = max(params)
+    min_value = min(params)
+    normalized_params = [(i - min_value) / (max_value - min_value) for i in params]   # 归一化处理
+    
+    _, ax = plt.subplots(figsize=(6, 8), dpi=300)   # 创建图形和子图
 
     avgs = []
     stds = []
-    for k, layer in enumerate(layers):
+    for k, _ in enumerate(layers):
         tmp = []            
         for i in range(overall_rounds):
             tmp.append(layer_cossim_overall[i][num_epochs-1][k][1])
@@ -195,12 +216,17 @@ def bar_graph(overall_rounds, num_epochs, layer_cossim_overall, picname):
 
     for i in range(len(avgs)):
         avgs[i] = 1 - avgs[i]
-
-    plt.barh(layers, avgs)
+        
+    bar_height = 0.4
+    ax.barh(index, avgs, label='layer shift', height=bar_height)
+    ax.barh(index + bar_height, normalized_params, label='layer params amount', height=bar_height)
 
     # plt.title('Shift distance by layer')
-    plt.xlabel('Shift distance')
-    plt.ylabel('Layer')
+    ax.set_xlabel('Delta Shift distance')
+    ax.set_ylabel('Layer')
+    ax.set_yticks(index + bar_height / 2)  # 刻度放在两个柱的中间位置
+    ax.set_yticklabels(layers)
+    ax.legend()
 
     path = f"./figs/{picname}.png"
     plt.savefig(path, bbox_inches='tight', pad_inches=0.1)

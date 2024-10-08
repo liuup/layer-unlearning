@@ -411,12 +411,13 @@ def main():
     draw.models_loss(overall_rounds, num_epochs, train_loss_1_overall, val_loss_1_overall, train_loss_2_overall, val_loss_2_overall, "models loss")
 
     # 绘制模型的层间相似度的图
-    draw.layers_cossim(overall_rounds, num_epochs, model1base_layer_cossim_overall, unlearn_k, "model1base_layer")
-    draw.layers_cossim(overall_rounds, num_epochs, model2base_layer_cossim_overall, unlearn_k, "model2base_layer")
-    draw.layers_cossim(overall_rounds, num_epochs, model12_layer_cossim_overall, unlearn_k, "model12_layer")
+    draw.layers_cossim(model1base_layer_cossim_overall, unlearn_k, "model1base_layer")
+    draw.layers_cossim(model2base_layer_cossim_overall, unlearn_k, "model2base_layer")
+    draw.layers_cossim(model12_layer_cossim_overall, unlearn_k, "model12_layer")
 
     # 再画一个柱状图
-    draw.bar_graph(overall_rounds, num_epochs, model12_layer_cossim_overall, "mode12 layer")
+    # print(model12_layer_cossim_overall)
+    draw.bar_graph(base_model, model12_layer_cossim_overall, "mode12 layer")
     
     print("----- ----- ----- all finished, exit ----- ----- -----\n")
 
@@ -424,6 +425,10 @@ def main():
 if __name__ == "__main__":
     main()
     
+    # model = models.get_cnn()
+    
+    # model12_layer_cossim_overall = [[[('cnn.0', 0.9950200319290161), ('cnn.3', 0.7989819645881653), ('cnn.6', 0.4856257736682892), ('cnn.10', 0.23954293131828308), ('cnn.13', 0.5954347252845764)], [('cnn.0', 0.9937743544578552), ('cnn.3', 0.7000305652618408), ('cnn.6', 0.3566979467868805), ('cnn.10', 0.17320312559604645), ('cnn.13', 0.5304965376853943)], [('cnn.0', 0.9928892254829407), ('cnn.3', 0.6390365958213806), ('cnn.6', 0.2964021861553192), ('cnn.10', 0.13859345018863678), ('cnn.13', 0.5044128894805908)]], [[('cnn.0', 0.9965137839317322), ('cnn.3', 0.803084135055542), ('cnn.6', 0.4601465165615082), ('cnn.10', 0.21007296442985535), ('cnn.13', 0.6165977716445923)], [('cnn.0', 0.9942222833633423), ('cnn.3', 0.7190644145011902), ('cnn.6', 0.3362821042537689), ('cnn.10', 0.14767834544181824), ('cnn.13', 0.5438803434371948)], [('cnn.0', 0.9931737780570984), ('cnn.3', 0.6781709790229797), ('cnn.6', 0.2769280672073364), ('cnn.10', 0.11591388285160065), ('cnn.13', 0.5104370713233948)]]]
+    # draw.bar_graph(model, model12_layer_cossim_overall, "mode12 layer")
     
     # layer_cossim_overall = [[[('cnn.0', 0.9944757223129272), ('cnn.3', 0.8003766536712646), ('cnn.6', 0.48619428277015686), ('cnn.10', 0.23170489072799683), ('cnn.13', 0.5955464243888855)], 
     #                          [('cnn.0', 0.9931106567382812), ('cnn.3', 0.7015987634658813), ('cnn.6', 0.357074111700058), ('cnn.10', 0.165965735912323), ('cnn.13', 0.5171494483947754)], 
