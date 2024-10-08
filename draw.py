@@ -176,6 +176,7 @@ def layers_cossim(overall_rounds, num_epochs, layer_cossim_overall, last_k, picn
 
 
 # 绘制模型层间偏移的柱状图
+# TODO: 再加上模型每一层的参数量
 def bar_graph(overall_rounds, num_epochs, layer_cossim_overall, picname):
     # 获取所有的层
     layers = [name for name, _ in layer_cossim_overall[0][0]]
