@@ -100,11 +100,10 @@ def main():
     batch_size = args.batch
     poison_ratio = args.poison
     
-    benign_trainloader, valloader = datasets.get_benign_dataset(batch_size)   # 加载一下数据集
-    poison_trainloader = benign_trainloader
-    testloader = valloader
-    # _, benign_trainloader, poison_trainloader, valloader, testloader = datasets.get_poison_dataset(batch_size, poison_ratio)
-    # benign_trainloader, valloader =
+    # benign_trainloader, valloader = datasets.get_benign_dataset(batch_size)   # 加载一下数据集
+    # poison_trainloader = benign_trainloader
+    # testloader = valloader
+    _, benign_trainloader, poison_trainloader, valloader, testloader = datasets.get_poison_dataset(batch_size, poison_ratio)
     
     for k in vars(args):    
         print(f"{k}: {vars(args)[k]}")  # 打印解析到的所有参数
