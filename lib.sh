@@ -1,0 +1,1 @@
+pip install scikit-learn -i https://pypi.tuna.tsinghua.edu.cn/simple

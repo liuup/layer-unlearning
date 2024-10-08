@@ -100,8 +100,11 @@ def main():
     batch_size = args.batch
     poison_ratio = args.poison
     
-    # trainloader, valloader = datasets.get_benign_dataset(int(args.batch))   # 加载一下数据集
-    _, benign_trainloader, poison_trainloader, valloader, testloader = datasets.get_poison_dataset(batch_size, poison_ratio)
+    benign_trainloader, valloader = datasets.get_benign_dataset(batch_size)   # 加载一下数据集
+    poison_trainloader = benign_trainloader
+    testloader = valloader
+    # _, benign_trainloader, poison_trainloader, valloader, testloader = datasets.get_poison_dataset(batch_size, poison_ratio)
+    # benign_trainloader, valloader =
     
     for k in vars(args):    
         print(f"{k}: {vars(args)[k]}")  # 打印解析到的所有参数
@@ -114,12 +117,14 @@ def main():
 
     print(f"model params amount: {models.get_model_params_amount(base_model)}")
 
-    print("----- ----- ----- train start ----- ----- -----")
 
-    
     # 获取模型的所有层，每一层都是weight+bias
     layers = models.get_layers(base_model)
     print(f"model layers: {layers}")
+    # for name, param in base_model.named_parameters():
+    #     print(name)
+    
+    print("----- ----- ----- train start ----- ----- -----")
 
 
     l2_normal = 0.001   # 撒一点正则
@@ -307,13 +312,13 @@ def main():
 
         # 4. 测试model2按照层间相似度从大到小的顺序，随机初始化后，重新训练偏移最大的k层，得到model2_lsc_euk
         model2_lsc_euk = copy.deepcopy(model2)
-        unlearning.adjust_lsc_euk(model2_lsc_euk, unlearn_k, model12_cossim_once)
+        unlearning.adjust_lsc_euk(model2_lsc_euk, unlearn_k, model12_layer_cossim_overall)
         loss_fn_lsc_euk = nn.CrossEntropyLoss()
         optimizer_lsc_euk = torch.optim.Adam(model2_lsc_euk.parameters(), lr=args.lr, weight_decay=l2_normal)
 
         # 5. 测试model2按照层间相似度从大到小的顺序，再训练偏移最大的k层，得到model2_lsc_cfk
         model2_lsc_cfk = copy.deepcopy(model2)
-        unlearning.adjust_lsc_cfk(model2_lsc_cfk, unlearn_k, model12_cossim_once)
+        unlearning.adjust_lsc_cfk(model2_lsc_cfk, unlearn_k, model12_layer_cossim_overall)
         loss_fn_lsc_cfk = nn.CrossEntropyLoss()
         optimizer_lsc_cfk = torch.optim.Adam(model2_lsc_cfk.parameters(), lr=args.lr, weight_decay=l2_normal)
 
@@ -328,7 +333,6 @@ def main():
             train_loss_1 = models.train(model1, loss_fn1, optimizer1, benign_trainloader, computing_device)
             print(f"epoch {epoch}/{unlearning_epochs}, model1 train_loss: {train_loss_1}")
         print()
-
 
 
         for epoch in range(unlearning_epochs):
@@ -350,12 +354,12 @@ def main():
             print(f"model2_cfk | TrainLoss {train_loss_cfk:.3f} | Val: loss {val_loss_cfk:.3f}, f1 {val_f1_cfk:.3f}, recall {val_recall_cfk:.3f}")
 
             # 4. 测试model2按照层间相似度从大到小的顺序，随机初始化后，重新训练偏移最大的k层，得到model2_lsc_euk
-            train_loss_lsc_euk = models.train(model2_lsc_euk, loss_fn_lsc_euk, benign_trainloader, computing_device)
+            train_loss_lsc_euk = models.train(model2_lsc_euk, loss_fn_lsc_euk, optimizer_lsc_euk, benign_trainloader, computing_device)
             val_loss_lsc_euk, val_f1_lsc_euk_f1, val_recall_lsc_euk = models.val(model2_lsc_euk, loss_fn_lsc_euk, valloader, computing_device)
             print(f"model2_lsc_euk | TrainLoss {train_loss_lsc_euk:.3f} | Val: loss {val_loss_lsc_euk:.3f}, f1 {val_f1_lsc_euk_f1:.3f}, recall {val_recall_lsc_euk:.3f}")
 
             # 5. 测试model2按照层间相似度从大到小的顺序，再训练偏移最大的k层，得到model2_lsc_cfk
-            train_loss_lsc_cfk = models.train(model2_lsc_cfk, loss_fn_lsc_cfk, benign_trainloader, computing_device)
+            train_loss_lsc_cfk = models.train(model2_lsc_cfk, loss_fn_lsc_cfk, optimizer_lsc_cfk, benign_trainloader, computing_device)
             val_loss_lsc_cfk, val_f1_lsc_cfk_f1, val_recall_lsc_cfk = models.val(model2_lsc_cfk, loss_fn_lsc_cfk, valloader, computing_device)
             print(f"model2_lsc_cfk | TrainLoss {train_loss_lsc_cfk:.3f} | Val: loss {val_loss_lsc_cfk:.3f}, f1 {val_f1_lsc_cfk_f1:.3f}, recall {val_recall_lsc_cfk:.3f}")
 
@@ -419,8 +423,38 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
+    
+    # layer_cossim_overall = [[[('cnn.0', 0.9944757223129272), ('cnn.3', 0.8003766536712646), ('cnn.6', 0.48619428277015686), ('cnn.10', 0.23170489072799683), ('cnn.13', 0.5955464243888855)], 
+    #                          [('cnn.0', 0.9931106567382812), ('cnn.3', 0.7015987634658813), ('cnn.6', 0.357074111700058), ('cnn.10', 0.165965735912323), ('cnn.13', 0.5171494483947754)], 
+    #                          [('cnn.0', 0.9924426078796387), ('cnn.3', 0.6421986818313599), ('cnn.6', 0.29461854696273804), ('cnn.10', 0.13351266086101532), ('cnn.13', 0.49549320340156555)]], 
+                            
+    #                         [[('cnn.0', 0.995876669883728), ('cnn.3', 0.7829258441925049), ('cnn.6', 0.4118117094039917), ('cnn.10', 0.1613379269838333), ('cnn.13', 0.5423262715339661)], 
+    #                          [('cnn.0', 0.9940106868743896), ('cnn.3', 0.7205977439880371), ('cnn.6', 0.30048733949661255), ('cnn.10', 0.11022266745567322), ('cnn.13', 0.4416947066783905)], 
+    #                          [('cnn.0', 0.9925479888916016), ('cnn.3', 0.6851338148117065), ('cnn.6', 0.24992744624614716), ('cnn.10', 0.08755210041999817), ('cnn.13', 0.4106897711753845)]]]
 
-    # model = models.get_resnet18()
+    # model1 = models.get_cnn()
+
+    # unlearning.adjust_lsc_euk(model1, 3, layer_cossim_overall)
+    
+    # layers = models.get_layers(model1)
+    
+    # ans = distance.layer_cossim(model1, model2, layers)
+    
+    # print(ans)
+    
+    # # for name, _ in model.named_parameters():
+    # #     print(name)
+    
+    # tmp = model.state_dict()["cnn.0.weight"].flatten()
+    
+    # all_layers = ['cnn.0.weight', 'cnn.0.bias', 'cnn.3.weight', 'cnn.3.bias', 'cnn.6.weight', 'cnn.6.bias', 'cnn.10.weight', 'cnn.10.bias', 'cnn.13.weight', 'cnn.13.bias']
+    
+    # layer = "cnn.0"
+    # if (layer+".bias") in all_layers:
+    #     print("yes")
+    
+    
 
     # once = [[('conv1', 0.9892870187759399), ('bn1', 0.9996811747550964), ('layer1.0.conv1', 0.9490164518356323), ('layer1.0.bn1', 0.9993597269058228), ('layer1.0.conv2', 0.9450321197509766), ('layer1.0.bn2', 0.9995304346084595), ('layer1.1.conv1', 0.9387645125389099), ('layer1.1.bn1', 0.9994910955429077), ('layer1.1.conv2', 0.9416826963424683), ('layer1.1.bn2', 0.9994126558303833), ('layer2.0.conv1', 0.8875864148139954), ('layer2.0.bn1', 0.9992159008979797), ('layer2.0.conv2', 0.86048823595047), ('layer2.0.bn2', 0.9988274574279785), ('layer2.0.downsample.0', 0.9800519943237305), ('layer2.0.downsample.1', 0.9987422227859497), ('layer2.1.conv1', 0.8619394302368164), ('layer2.1.bn1', 0.9990377426147461), ('layer2.1.conv2', 0.868962824344635), ('layer2.1.bn2', 0.9992802143096924), ('layer3.0.conv1', 0.7512746453285217), ('layer3.0.bn1', 0.9992802143096924), ('layer3.0.conv2', 0.645331859588623), ('layer3.0.bn2', 0.9988118410110474), ('layer3.0.downsample.0', 0.9401004314422607), ('layer3.0.downsample.1', 0.999196469783783), ('layer3.1.conv1', 0.6307452917098999), ('layer3.1.bn1', 0.9992691278457642), ('layer3.1.conv2', 0.6161508560180664), ('layer3.1.bn2', 0.999445915222168), ('layer4.0.conv1', 0.32513627409935), ('layer4.0.bn1', 0.9995137453079224), ('layer4.0.conv2', 0.1766008585691452), ('layer4.0.bn2', 0.9994419813156128), ('layer4.0.downsample.0', 0.8568983674049377), ('layer4.0.downsample.1', 0.999441385269165), ('layer4.1.conv1', 0.17824435234069824), ('layer4.1.bn1', 0.999327540397644), ('layer4.1.conv2', 0.26977279782295227), ('layer4.1.bn2', 0.9995599389076233), ('fc', 0.9601072669029236)]]
     

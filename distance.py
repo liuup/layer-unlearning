@@ -14,11 +14,12 @@ def model_l1(model1, model2):
     pass
 
 # 测量两个模型层间的余弦相似度cossim
+# TODO: 似乎多卡并行的时候会报错，不确定
 def layer_cossim(model1, model2, layers):
     ans = []
     all_layers = [name for name, _ in model1.named_parameters()]
     for layer in layers:
-        if (layer+"bias") in all_layers:
+        if (layer+".bias") in all_layers:
             layer_t_1 = torch.concat([model1.state_dict()[layer+".weight"].flatten(), 
                                     model1.state_dict()[layer+".bias"].flatten()])
             layer_t_2 = torch.concat([model2.state_dict()[layer+".weight"].flatten(), 
