@@ -261,19 +261,6 @@ def main():
         model2base_layer_cossim_overall.append(model2base_layer_cossim_once)
         model12_layer_cossim_overall.append(model12_layer_cossim_once)
 
-
-        # print(model1base_layer_cossim_overall)
-        
-        '''
-        在这里继续unlearning
-        假设k=3吧, epoch 1-10  
-        4. 测试model2在正常数据集上再训练,得到model2_retrain  
-        5. 测试model2在正常数据集上再训练后k层的效果,得到model2_euk  
-        6. 测试model2后k层随机初始化参数，重新训练后k层，得到model2_cfk  
-        7. 测试model2按照层间相似度从大到小的顺序，再训练偏移最大的k层，得到model2_lsc_euk  
-        8. 测试model2按照层间相似度从大到小的顺序，随机初始化偏移最大的k层，得到model2_lsc_cfk  
-        '''
-
         #
         # test
         #

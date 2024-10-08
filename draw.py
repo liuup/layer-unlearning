@@ -28,6 +28,7 @@ def calc_std(overall_rounds, num_epochs, data_overall):
 
 
 # 绘制模型间的余弦相似度图像
+# TODO: 参数换成cossim_overall list会方便很多
 def models_cossim(overall_rounds, num_epochs, model1base_cossim_overall, model2base_cossim_overall, model12_cossim_overall, picname):
     epochs = [(i+1) for i in range(num_epochs)]
 
