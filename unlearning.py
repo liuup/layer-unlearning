@@ -1,34 +1,33 @@
 import torch.nn as nn
+import models
 
-# TODO: 如果后面的k层中，存在一个层，只有weight没有bias怎么办，还需要处理一下这个特殊情况
 
 # EuK unlearning，重新训练后k层
 def adjust_euk(model, unlearn_k):
-    all_layers = [name for name, _ in model.named_parameters()]
-    cancel_gradient = []
-    for i in range(len(all_layers) - unlearn_k * 2):    # x2的原因是因为既有weight也有bias
-        cancel_gradient.append(all_layers[i])
+    all_layers = models.get_layers(model)
+    cancel_gradient = all_layers[:unlearn_k-1]  # 除了后面的unlearn_k层，其他层都要取消梯度
 
     for name, param in model.named_parameters():
+        name = name.replace(".weight", "")
+        name = name.replace(".bias", "")
+
         if name in cancel_gradient:
-            param.requires_grad = False  # 前面的层取消梯度
+            param.requires_grad = False # 前面的层取消梯度
         else:
-            nn.init.normal_(param, mean=0.0, std=0.1) # 后面的层随机初始化参数
+            nn.init.normal_(param, mean=0.0, std=0.1)   # 后面的层随机初始化参数
 
    
 # CfK unlearning，继续训练后k层
 def adjust_cfk(model, unlearn_k):
-    all_layers = [name for name, _ in model.named_parameters()]
-    cancel_gradient = []
-    for i in range(len(all_layers) - unlearn_k * 2):    # x2的原因是因为既有weight也有bias
-        cancel_gradient.append(all_layers[i])
-    count = 0
-    for name, param in model.named_parameters():    # 取消梯度
+    all_layers = models.get_layers(model)
+    cancel_gradient = all_layers[:unlearn_k-1]  # 除了后面的unlearn_k层，其他层都要取消梯度
+
+    for name, param in model.named_parameters():
+        name = name.replace(".weight", "")
+        name = name.replace(".bias", "")
+
         if name in cancel_gradient:
-            param.requires_grad = False
-            count += 1  
-            if count == len(cancel_gradient):   # 提前退出
-                break
+            param.requires_grad = False # 前面的层取消梯度
 
 
 # lsc_euk 按照层间偏移从大到小的顺序，重新训练偏移最大的k层
