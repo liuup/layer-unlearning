@@ -195,8 +195,10 @@ def bar_graph(model, layer_cossim_overall, picname):
     for name, param in model.named_parameters():
         params_amount[name] = param.numel()
     for idx, layer in enumerate(layers):
-        params[idx] += params_amount[layer+".weight"]
-        params[idx] += params_amount[layer+".bias"]
+        if layer+".weight" in params_amount.keys():
+            params[idx] += params_amount[layer+".weight"]
+        if layer+".bias" in params_amount.keys():
+            params[idx] += params_amount[layer+".bias"]
     
    # 计算列表中的最大值和最小值
     max_value = max(params)
